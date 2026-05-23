@@ -1,0 +1,99 @@
+[mit]
+name = "MIT License"
+description = "A permissive license that is short and to the point."
+spdx_id = "MIT"
+placeholders = ["year", "author"]
+keywords = ["permissive", "popular", "simple", "mit"]
+permissions = ["Commercial use", "Distribution", "Modification", "Private use"]
+conditions = ["License and copyright notice"]
+limitations = ["Liability", "Warranty"]
+
+["apache-2.0"]
+name = "Apache License 2.0"
+description = "A permissive license that also provides an express grant of patent rights."
+spdx_id = "Apache-2.0"
+placeholders = ["year", "author"]
+keywords = ["permissive", "popular", "patent", "apache"]
+permissions = ["Commercial use", "Distribution", "Modification", "Patent use", "Private use"]
+conditions = ["License and copyright notice", "State changes"]
+limitations = ["Liability", "Trademark use", "Warranty"]
+
+["gpl-3.0"]
+name = "GNU General Public License v3.0"
+description = "The strongest copyleft license, requiring derivative works to be open source."
+spdx_id = "GPL-3.0-only"
+placeholders = ["year", "author"]
+keywords = ["copyleft", "popular", "strong", "gpl"]
+permissions = ["Commercial use", "Distribution", "Modification", "Patent use", "Private use"]
+conditions = ["Disclose source", "License and copyright notice", "Same license", "State changes"]
+limitations = ["Liability", "Warranty"]
+
+["lgpl-3.0"]
+name = "GNU Lesser General Public License v3.0"
+description = "A weaker copyleft license allowing linking without copyleft effect."
+spdx_id = "LGPL-3.0-only"
+placeholders = ["year", "author"]
+keywords = ["copyleft", "weak", "lesser", "lgpl"]
+permissions = ["Commercial use", "Distribution", "Modification", "Patent use", "Private use"]
+conditions = ["Disclose source", "License and copyright notice", "Same license (library)", "State changes"]
+limitations = ["Liability", "Warranty"]
+
+["bsd-3-clause"]
+name = "BSD 3-Clause License"
+description = "A permissive license allowing unlimited redistribution with a simple attribution requirement."
+spdx_id = "BSD-3-Clause"
+placeholders = ["year", "author"]
+keywords = ["permissive", "bsd", "popular"]
+permissions = ["Commercial use", "Distribution", "Modification", "Private use"]
+conditions = ["License and copyright notice"]
+limitations = ["Liability", "Warranty"]
+
+["bsd-2-clause"]
+name = "BSD 2-Clause License"
+description = "A permissive license similar to BSD 3-Clause but without the non-endorsement clause."
+spdx_id = "BSD-2-Clause"
+placeholders = ["year", "author"]
+keywords = ["permissive", "bsd", "simplified"]
+permissions = ["Commercial use", "Distribution", "Modification", "Private use"]
+conditions = ["License and copyright notice"]
+limitations = ["Liability", "Warranty"]
+
+["mpl-2.0"]
+name = "Mozilla Public License 2.0"
+description = "A weak copyleft license that allows combination with proprietary code."
+spdx_id = "MPL-2.0"
+placeholders = []
+keywords = ["copyleft", "weak", "mozilla", "mpl"]
+permissions = ["Commercial use", "Distribution", "Modification", "Patent use", "Private use"]
+conditions = ["Disclose source", "License and copyright notice", "Same license (file)"]
+limitations = ["Liability", "Trademark use", "Warranty"]
+
+[unlicense]
+name = "The Unlicense"
+description = "A license with no conditions, dedicating the work to the public domain."
+spdx_id = "Unlicense"
+placeholders = []
+keywords = ["public-domain", "permissive", "unlicense"]
+permissions = ["Commercial use", "Distribution", "Modification", "Private use"]
+conditions = []
+limitations = ["Liability", "Warranty"]
+
+[isc]
+name = "ISC License"
+description = "A permissive license functionally equivalent to BSD 2-Clause and MIT."
+spdx_id = "ISC"
+placeholders = ["year", "author"]
+keywords = ["permissive", "simple", "isc"]
+permissions = ["Commercial use", "Distribution", "Modification", "Private use"]
+conditions = ["License and copyright notice"]
+limitations = ["Liability", "Warranty"]
+
+["epl-2.0"]
+name = "Eclipse Public License 2.0"
+description = "A weak copyleft license similar to MPL but with different patent provisions."
+spdx_id = "EPL-2.0"
+placeholders = []
+keywords = ["copyleft", "weak", "eclipse", "epl"]
+permissions = ["Commercial use", "Distribution", "Modification", "Patent use", "Private use"]
+conditions = ["Disclose source", "License and copyright notice"]
+limitations = ["Liability", "Warranty"]
