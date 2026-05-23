@@ -1,0 +1,79 @@
+[mit]
+name = "MIT License"
+spdx_id = "MIT"
+description = "A permissive license that is short and to the point."
+permissions = ["Commercial use", "Distribution", "Modification", "Private use"]
+conditions = ["License and copyright notice"]
+limitations = ["Liability", "Warranty"]
+
+["apache-2.0"]
+name = "Apache License 2.0"
+spdx_id = "Apache-2.0"
+description = "A permissive license that also provides an express grant of patent rights."
+permissions = ["Commercial use", "Distribution", "Modification", "Patent use", "Private use"]
+conditions = ["License and copyright notice", "State changes"]
+limitations = ["Liability", "Trademark use", "Warranty"]
+
+["gpl-3.0"]
+name = "GNU General Public License v3.0"
+spdx_id = "GPL-3.0-only"
+description = "The strongest copyleft license, requiring derivative works to be open source."
+permissions = ["Commercial use", "Distribution", "Modification", "Patent use", "Private use"]
+conditions = ["Disclose source", "License and copyright notice", "Same license", "State changes"]
+limitations = ["Liability", "Warranty"]
+
+["lgpl-3.0"]
+name = "GNU Lesser General Public License v3.0"
+spdx_id = "LGPL-3.0-only"
+description = "A weaker copyleft license allowing linking without copyleft effect."
+permissions = ["Commercial use", "Distribution", "Modification", "Patent use", "Private use"]
+conditions = ["Disclose source", "License and copyright notice", "Same license (library)", "State changes"]
+limitations = ["Liability", "Warranty"]
+
+["bsd-3-clause"]
+name = "BSD 3-Clause License"
+spdx_id = "BSD-3-Clause"
+description = "A permissive license allowing unlimited redistribution with a simple attribution requirement."
+permissions = ["Commercial use", "Distribution", "Modification", "Private use"]
+conditions = ["License and copyright notice"]
+limitations = ["Liability", "Warranty"]
+
+["bsd-2-clause"]
+name = "BSD 2-Clause License"
+spdx_id = "BSD-2-Clause"
+description = "A permissive license similar to BSD 3-Clause but without the non-endorsement clause."
+permissions = ["Commercial use", "Distribution", "Modification", "Private use"]
+conditions = ["License and copyright notice"]
+limitations = ["Liability", "Warranty"]
+
+["mpl-2.0"]
+name = "Mozilla Public License 2.0"
+spdx_id = "MPL-2.0"
+description = "A weak copyleft license that allows combination with proprietary code."
+permissions = ["Commercial use", "Distribution", "Modification", "Patent use", "Private use"]
+conditions = ["Disclose source", "License and copyright notice", "Same license (file)"]
+limitations = ["Liability", "Trademark use", "Warranty"]
+
+[unlicense]
+name = "The Unlicense"
+spdx_id = "Unlicense"
+description = "A license with no conditions, dedicating the work to the public domain."
+permissions = ["Commercial use", "Distribution", "Modification", "Private use"]
+conditions = []
+limitations = ["Liability", "Warranty"]
+
+[isc]
+name = "ISC License"
+spdx_id = "ISC"
+description = "A permissive license functionally equivalent to BSD 2-Clause and MIT."
+permissions = ["Commercial use", "Distribution", "Modification", "Private use"]
+conditions = ["License and copyright notice"]
+limitations = ["Liability", "Warranty"]
+
+["epl-2.0"]
+name = "Eclipse Public License 2.0"
+spdx_id = "EPL-2.0"
+description = "A weak copyleft license similar to MPL but with different patent provisions."
+permissions = ["Commercial use", "Distribution", "Modification", "Patent use", "Private use"]
+conditions = ["Disclose source", "License and copyright notice"]
+limitations = ["Liability", "Warranty"]
