@@ -14,6 +14,10 @@ const VERSION: &str = "0.1.0";
 #[derive(Parser, Debug)]
 #[command(name = "clicense", version = VERSION, about = "A CLI tool for generating open source license files", long_about = None)]
 struct Cli {
+    /// Enable verbose output (show resolved config, file paths, HTTP details, etc.)
+    #[arg(short, long, global = true)]
+    verbose: bool,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -132,6 +136,7 @@ fn main() {
 
 fn run() -> Result<()> {
     let cli = Cli::parse();
+    let verbose = cli.verbose;
 
     match cli.command {
         Commands::Version => {
@@ -148,6 +153,7 @@ fn run() -> Result<()> {
                 output.as_deref(),
                 year.as_deref(),
                 author.as_deref(),
+                verbose,
             )?;
         }
         Commands::Config { key, value, list, reset } => {
@@ -156,35 +162,36 @@ fn run() -> Result<()> {
                 value.as_deref(),
                 list,
                 reset.as_deref(),
+                verbose,
             )?;
         }
         Commands::Update { update_url } => {
-            command::update::execute(update_url.as_deref())?;
+            command::update::execute(update_url.as_deref(), verbose)?;
         }
         Commands::Add { file, name, force } => {
-            command::add::execute(&file, &name, force)?;
+            command::add::execute(&file, &name, force, verbose)?;
         }
         Commands::Remove { names, all } => {
             if all {
-                command::remove::execute_all()?;
+                command::remove::execute_all(verbose)?;
             } else {
-                command::remove::execute(&names)?;
+                command::remove::execute(&names, verbose)?;
             }
         }
         Commands::List { license_name, builtin, custom } => {
-            command::list::execute(license_name.as_deref(), builtin, custom)?;
+            command::list::execute(license_name.as_deref(), builtin, custom, verbose)?;
         }
         Commands::Online { online_url, command } => match command {
-            OnlineCommands::List => command::online::execute_list(online_url.as_deref())?,
-            OnlineCommands::License { name } => command::online::execute_license(&name, online_url.as_deref())?,
-            OnlineCommands::Source { name } => command::online::execute_source(&name, online_url.as_deref())?,
+            OnlineCommands::List => command::online::execute_list(online_url.as_deref(), verbose)?,
+            OnlineCommands::License { name } => command::online::execute_license(&name, online_url.as_deref(), verbose)?,
+            OnlineCommands::Source { name } => command::online::execute_source(&name, online_url.as_deref(), verbose)?,
         },
         Commands::Source {
             license_name,
             year,
             author,
         } => {
-            command::source::execute(&license_name, year.as_deref(), author.as_deref())?;
+            command::source::execute(&license_name, year.as_deref(), author.as_deref(), verbose)?;
         }
     }
 

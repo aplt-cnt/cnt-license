@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use colored::Colorize;
 
 use crate::config;
 use crate::license;
@@ -8,12 +9,27 @@ use crate::license;
 /// Lookup order: built-in → custom.
 /// If `year` or `author` are provided, `{year}` / `{author}` placeholders
 /// are replaced in the output.
-pub fn execute(license_name: &str, year: Option<&str>, author: Option<&str>) -> Result<()> {
+pub fn execute(license_name: &str, year: Option<&str>, author: Option<&str>, verbose: bool) -> Result<()> {
+    if verbose {
+        let licenses_dir = config::licenses_dir().unwrap_or_default();
+        let is_builtin = license::is_builtin_license(license_name);
+        println!("{} License: {}", "·".dimmed(), license_name.cyan());
+        println!("{} Source: {}", "·".dimmed(), if is_builtin { "built-in".green().to_string() } else { format!("custom ({})", licenses_dir.join(license_name).display()).cyan().to_string() });
+        println!("{} year: {}", "·".dimmed(), year.unwrap_or("(empty)").dimmed());
+        println!("{} author: {}", "·".dimmed(), author.unwrap_or("(empty)").dimmed());
+        println!();
+    }
+
     let template = get_template(license_name)?;
     let year = year.unwrap_or("");
     let author = author.unwrap_or("");
 
     let output = license::generate_license(&template, year, author);
+
+    if verbose {
+        println!("{} Output: {} bytes\n", "·".dimmed(), output.len().to_string().yellow());
+    }
+
     println!("{}", output);
 
     Ok(())

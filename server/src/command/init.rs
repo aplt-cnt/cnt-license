@@ -39,7 +39,17 @@ fn get_builtin_content(id: &str) -> Option<&'static str> {
 /// # Arguments
 /// * `licenses_dir` - CLI 覆盖的许可证目录路径
 /// * `force` - 是否覆盖已存在的模板文件
-pub fn execute(licenses_dir: Option<&str>, force: bool) -> Result<()> {
+pub fn execute(licenses_dir: Option<&str>, force: bool, verbose: bool) -> Result<()> {
+    if verbose {
+        let config_path = config::ServerConfig::config_file_path().unwrap_or_default();
+        println!("{} Config file: {}", "·".dimmed(), config_path.display().to_string().dimmed());
+        println!("{} force: {}", "·".dimmed(), force.to_string().dimmed());
+        if let Some(d) = licenses_dir {
+            println!("{} licenses_dir override: {}", "·".dimmed(), d.cyan());
+        }
+        println!();
+    }
+
     // 1. 确保配置目录存在
     config::ServerConfig::ensure_config_dir()?;
 
@@ -97,6 +107,7 @@ pub fn execute(licenses_dir: Option<&str>, force: bool) -> Result<()> {
         let file_path = dir.join(format!("{}.txt", id));
 
         if file_path.exists() && !force {
+            if verbose { println!("{} Skip: {}", "·".dimmed(), file_path.display().to_string().dimmed()); }
             println!(
                 "  {} {} (already exists)",
                 "⚠".yellow(),
@@ -111,6 +122,7 @@ pub fn execute(licenses_dir: Option<&str>, force: bool) -> Result<()> {
                     e
                 )
             })?;
+            if verbose { println!("{} Write: {} ({} bytes)", "·".dimmed(), file_path.display().to_string().dimmed(), content.len()); }
             println!(
                 "  {} {} ({} bytes)",
                 "✓".green().bold(),

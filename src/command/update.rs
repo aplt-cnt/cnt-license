@@ -23,8 +23,19 @@ struct DiffItem {
 /// Executes `clicense update`: downloads the latest license templates
 /// from the configured (or overridden) update_url, compares against local
 /// files, and reports a detailed diff.
-pub fn execute(override_url: Option<&str>) -> Result<()> {
+pub fn execute(override_url: Option<&str>, verbose: bool) -> Result<()> {
     let base = http::resolve_url(override_url, None)?;
+
+    if verbose {
+        let cfg = config::load_config().unwrap_or_default();
+        let config_path = config::config_file_path().unwrap_or_default();
+        let licenses_path = config::licenses_dir().unwrap_or_default();
+        println!("{} Config file: {}", "·".dimmed(), config_path.display().to_string().dimmed());
+        println!("{} update_url (config): {}", "·".dimmed(), cfg.update_url.dimmed());
+        println!("{} update_url (resolved): {}", "·".dimmed(), base.cyan());
+        println!("{} Local licenses dir: {}", "·".dimmed(), licenses_path.display().to_string().dimmed());
+        println!();
+    }
 
     println!(
         "{} Fetching license updates from {}...\n",
@@ -34,7 +45,13 @@ pub fn execute(override_url: Option<&str>) -> Result<()> {
 
     // --- HTTP fetch (YAML format) ---
     let url = format!("{}/api/v1/licenses", base);
+    if verbose {
+        println!("{} GET {}", "·".dimmed(), url.cyan());
+    }
     let body = http::get_yaml(&url)?;
+    if verbose {
+        println!("{} Response: {} bytes\n", "·".dimmed(), body.len().to_string().yellow());
+    }
 
     let remote: HashMap<String, String> = serde_yaml::from_str(&body)
         .map_err(|e| anyhow!("Failed to parse response as license templates: {}", e))?;

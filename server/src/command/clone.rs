@@ -11,7 +11,7 @@ use crate::config;
 /// * `url`          - Remote server URL (e.g. http://localhost:3000)
 /// * `licenses_dir` - CLI override for licenses directory
 /// * `force`        - If true, overwrite existing license files
-pub fn execute(url: &str, licenses_dir: Option<&str>, force: bool) -> Result<()> {
+pub fn execute(url: &str, licenses_dir: Option<&str>, force: bool, verbose: bool) -> Result<()> {
     // 1. 解析许可证目录
     let cfg = config::ServerConfig::load_from_file()?;
     let resolved_dir = config::resolve_licenses_dir(licenses_dir, &cfg);
@@ -20,6 +20,16 @@ pub fn execute(url: &str, licenses_dir: Option<&str>, force: bool) -> Result<()>
     // 2. 构建远程 URL
     let base_url = url.trim_end_matches('/');
     let api_url = format!("{}/api/v1/licenses", base_url);
+
+    if verbose {
+        let config_path = config::ServerConfig::config_file_path().unwrap_or_default();
+        println!("{} Config file: {}", "·".dimmed(), config_path.display().to_string().dimmed());
+        println!("{} Remote URL: {}", "·".dimmed(), base_url.cyan());
+        println!("{} GET {}", "·".dimmed(), api_url.cyan());
+        println!("{} Licenses dir: {}", "·".dimmed(), resolved_dir.cyan());
+        println!("{} force: {}", "·".dimmed(), force.to_string().dimmed());
+        println!();
+    }
 
     println!(
         "{} Cloning from {} ...",
@@ -34,6 +44,10 @@ pub fn execute(url: &str, licenses_dir: Option<&str>, force: bool) -> Result<()>
             api_url, e
         )
     })?;
+
+    if verbose {
+        println!("{} Response: {} templates received\n", "·".dimmed(), templates.len().to_string().yellow());
+    }
 
     if templates.is_empty() {
         println!(

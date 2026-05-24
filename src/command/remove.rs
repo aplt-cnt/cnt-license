@@ -7,7 +7,7 @@ use crate::config;
 ///
 /// Each name is processed independently — a failure on one does not
 /// prevent the others from being removed.
-pub fn execute(names: &[String]) -> Result<()> {
+pub fn execute(names: &[String], verbose: bool) -> Result<()> {
     if names.is_empty() {
         return Err(anyhow!("Usage: clicense remove <name> [<name>...]"));
     }
@@ -16,6 +16,14 @@ pub fn execute(names: &[String]) -> Result<()> {
 
     if !licenses_dir.exists() {
         return Err(anyhow!("No custom licenses found."));
+    }
+
+    if verbose {
+        let config_path = config::config_file_path().unwrap_or_default();
+        println!("{} Config file: {}", "·".dimmed(), config_path.display().to_string().dimmed());
+        println!("{} Licenses dir: {}", "·".dimmed(), licenses_dir.display().to_string().cyan());
+        println!("{} Targets: {}", "·".dimmed(), names.join(", ").yellow());
+        println!();
     }
 
     let mut removed = 0u32;
@@ -30,6 +38,7 @@ pub fn execute(names: &[String]) -> Result<()> {
         }
         match std::fs::remove_file(&path) {
             Ok(()) => {
+                if verbose { println!("{} Deleted: {}", "·".dimmed(), path.display().to_string().dimmed()); }
                 println!(
                     "  {} Removed '{}'",
                     "✓".green().bold(),
@@ -56,12 +65,19 @@ pub fn execute(names: &[String]) -> Result<()> {
 }
 
 /// Executes `clicense remove --all`: removes ALL custom license templates.
-pub fn execute_all() -> Result<()> {
+pub fn execute_all(verbose: bool) -> Result<()> {
     let licenses_dir = config::licenses_dir()?;
 
     if !licenses_dir.exists() {
         println!("  {} No custom licenses to remove.", "—".dimmed());
         return Ok(());
+    }
+
+    if verbose {
+        let config_path = config::config_file_path().unwrap_or_default();
+        println!("{} Config file: {}", "·".dimmed(), config_path.display().to_string().dimmed());
+        println!("{} Licenses dir: {}", "·".dimmed(), licenses_dir.display().to_string().cyan());
+        println!();
     }
 
     let entries: Vec<String> = std::fs::read_dir(&licenses_dir)?
@@ -89,6 +105,7 @@ pub fn execute_all() -> Result<()> {
         let path = licenses_dir.join(name);
         match std::fs::remove_file(&path) {
             Ok(()) => {
+                if verbose { println!("{} Deleted: {}", "·".dimmed(), path.display().to_string().dimmed()); }
                 println!(
                     "  {} Removed '{}'",
                     "✓".green().bold(),

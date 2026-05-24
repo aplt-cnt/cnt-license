@@ -4,6 +4,10 @@ use clap::{Parser, Subcommand};
 #[derive(Parser, Debug)]
 #[command(name = "clicense-server", version, about = "An open source license API server", arg_required_else_help = true)]
 pub struct Cli {
+    /// Enable verbose output (show config paths, file details, HTTP info, etc.)
+    #[arg(short, long, global = true)]
+    pub verbose: bool,
+
     #[command(subcommand)]
     pub command: Commands,
 }

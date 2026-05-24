@@ -9,14 +9,25 @@ use crate::config;
 /// * `names`        - List of license names to remove
 /// * `all`          - If true, remove all license templates
 /// * `licenses_dir` - CLI override for licenses directory
-pub fn execute(names: &[String], all: bool, licenses_dir: Option<&str>) -> Result<()> {
+pub fn execute(names: &[String], all: bool, licenses_dir: Option<&str>, verbose: bool) -> Result<()> {
     // 解析许可证目录
     let cfg = config::ServerConfig::load_from_file()?;
     let resolved_dir = config::resolve_licenses_dir(licenses_dir, &cfg);
     let dir = std::path::Path::new(&resolved_dir);
 
+    if verbose {
+        let config_path = config::ServerConfig::config_file_path().unwrap_or_default();
+        println!("{} Config file: {}", "·".dimmed(), config_path.display().to_string().dimmed());
+        println!("{} Licenses dir: {}", "·".dimmed(), resolved_dir.cyan());
+        println!("{} all: {}", "·".dimmed(), all.to_string().dimmed());
+        if !names.is_empty() {
+            println!("{} targets: {}", "·".dimmed(), names.join(", ").yellow());
+        }
+        println!();
+    }
+
     if all {
-        return remove_all(dir);
+        return remove_all(dir, verbose);
     }
 
     if names.is_empty() {
@@ -25,11 +36,11 @@ pub fn execute(names: &[String], all: bool, licenses_dir: Option<&str>) -> Resul
         ));
     }
 
-    remove_names(dir, names)
+    remove_names(dir, names, verbose)
 }
 
 /// 删除指定名称的许可证
-fn remove_names(dir: &std::path::Path, names: &[String]) -> Result<()> {
+fn remove_names(dir: &std::path::Path, names: &[String], verbose: bool) -> Result<()> {
     if !dir.exists() {
         return Err(anyhow!("Licenses directory '{}' not found.", dir.display()));
     }
@@ -46,6 +57,7 @@ fn remove_names(dir: &std::path::Path, names: &[String]) -> Result<()> {
         }
         match std::fs::remove_file(&path) {
             Ok(()) => {
+                if verbose { println!("{} Deleted: {}", "·".dimmed(), path.display().to_string().dimmed()); }
                 println!(
                     "  {} Removed '{}'",
                     "✓".green().bold(),
@@ -72,7 +84,7 @@ fn remove_names(dir: &std::path::Path, names: &[String]) -> Result<()> {
 }
 
 /// 删除所有许可证模板文件
-fn remove_all(dir: &std::path::Path) -> Result<()> {
+fn remove_all(dir: &std::path::Path, verbose: bool) -> Result<()> {
     if !dir.exists() {
         println!(
             "  {} No licenses to remove.",
@@ -109,6 +121,7 @@ fn remove_all(dir: &std::path::Path) -> Result<()> {
         let path = dir.join(name);
         match std::fs::remove_file(&path) {
             Ok(()) => {
+                if verbose { println!("{} Deleted: {}", "·".dimmed(), path.display().to_string().dimmed()); }
                 println!(
                     "  {} Removed '{}'",
                     "✓".green().bold(),

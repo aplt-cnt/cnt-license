@@ -8,11 +8,19 @@ use crate::config;
 /// # Arguments
 /// * `name`         - Optional license name to show details
 /// * `licenses_dir` - CLI override for licenses directory
-pub fn execute(name: Option<&str>, licenses_dir: Option<&str>) -> Result<()> {
+pub fn execute(name: Option<&str>, licenses_dir: Option<&str>, verbose: bool) -> Result<()> {
     // 解析许可证目录
     let cfg = config::ServerConfig::load_from_file()?;
     let resolved_dir = config::resolve_licenses_dir(licenses_dir, &cfg);
     let dir = std::path::Path::new(&resolved_dir);
+
+    if verbose {
+        let config_path = config::ServerConfig::config_file_path().unwrap_or_default();
+        println!("{} Config file: {}", "·".dimmed(), config_path.display().to_string().dimmed());
+        println!("{} Licenses dir: {}", "·".dimmed(), resolved_dir.cyan());
+        println!("{} Dir exists: {}", "·".dimmed(), dir.exists().to_string().dimmed());
+        println!();
+    }
 
     if let Some(name) = name {
         return show_detail(dir, name);

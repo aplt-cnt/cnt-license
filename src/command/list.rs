@@ -10,7 +10,15 @@ use crate::metadata::{self, LicenseMeta};
 /// - No argument: lists all installed licenses (built-in + custom).
 /// - `license_name`: shows detailed info for a specific license.
 /// - `builtin` / `custom`: filter the listing.
-pub fn execute(license_name: Option<&str>, builtin_only: bool, custom_only: bool) -> Result<()> {
+pub fn execute(license_name: Option<&str>, builtin_only: bool, custom_only: bool, verbose: bool) -> Result<()> {
+    if verbose {
+        let config_path = config::config_file_path().unwrap_or_default();
+        let licenses_path = config::licenses_dir().unwrap_or_default();
+        println!("{} Config file: {}", "·".dimmed(), config_path.display().to_string().dimmed());
+        println!("{} Custom licenses dir: {}", "·".dimmed(), licenses_path.display().to_string().dimmed());
+        println!("{} Filter: builtin_only={}, custom_only={}", "·".dimmed(), builtin_only, custom_only);
+        println!();
+    }
     match license_name {
         Some(name) => show_detail(name),
         None => list_all(builtin_only, custom_only),

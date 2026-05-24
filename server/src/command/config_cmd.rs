@@ -10,7 +10,17 @@ use crate::config;
 /// - `config <key> <value>`  → set a configuration key
 /// - `config <key>`          → show the current value of a specific key
 /// - `config --reset <key>`  → reset a key to its default value
-pub fn execute(key: Option<&str>, value: Option<&str>, list: bool, reset: Option<&str>) -> Result<()> {
+pub fn execute(key: Option<&str>, value: Option<&str>, list: bool, reset: Option<&str>, verbose: bool) -> Result<()> {
+    if verbose {
+        let config_path = config::ServerConfig::config_file_path().unwrap_or_default();
+        let exists = config_path.exists();
+        println!("{} Config file: {} ({})", "·".dimmed(),
+            config_path.display().to_string().dimmed(),
+            if exists { "exists".green().to_string() } else { "not found, using defaults".yellow().to_string() }
+        );
+        println!();
+    }
+
     // --list mode
     if list {
         return list_config();
@@ -18,7 +28,7 @@ pub fn execute(key: Option<&str>, value: Option<&str>, list: bool, reset: Option
 
     // --reset <key> mode
     if let Some(reset_key) = reset {
-        return reset_config(reset_key);
+        return reset_config(reset_key, verbose);
     }
 
     // Need at least a key
@@ -30,7 +40,7 @@ pub fn execute(key: Option<&str>, value: Option<&str>, list: bool, reset: Option
 
     // config <key> <value> → set
     if let Some(val) = value {
-        return set_config(key, val);
+        return set_config(key, val, verbose);
     }
 
     // config <key> → show
@@ -119,7 +129,7 @@ fn show_config(key: &str) -> Result<()> {
 }
 
 /// Sets a configuration key to a given value
-fn set_config(key: &str, value: &str) -> Result<()> {
+fn set_config(key: &str, value: &str, verbose: bool) -> Result<()> {
     if !config::is_valid_key(key) {
         return Err(anyhow!(
             "Unknown config key: '{}'. Run 'clicense-server config --list' to see all available keys.",
@@ -128,8 +138,17 @@ fn set_config(key: &str, value: &str) -> Result<()> {
     }
 
     let mut cfg = config::ServerConfig::load_from_file()?;
+    let old_value = cfg.get_value(key).unwrap_or_else(|| "(unknown)".to_string());
     cfg.set_value(key, value)?;
     cfg.save_to_file()?;
+
+    if verbose {
+        let path = config::ServerConfig::config_file_path().unwrap_or_default();
+        println!("{} Config file: {}", "·".dimmed(), path.display().to_string().dimmed());
+        println!("{} Old value: {}", "·".dimmed(), old_value.dimmed());
+        println!("{} New value: {}", "·".dimmed(), value.cyan());
+        println!();
+    }
 
     println!(
         "{} Config updated: {} = {}",
@@ -142,7 +161,7 @@ fn set_config(key: &str, value: &str) -> Result<()> {
 }
 
 /// Resets a configuration key to its default value
-fn reset_config(key: &str) -> Result<()> {
+fn reset_config(key: &str, verbose: bool) -> Result<()> {
     if !config::is_valid_key(key) {
         return Err(anyhow!(
             "Unknown config key: '{}'. Run 'clicense-server config --list' to see all available keys.",
@@ -151,8 +170,16 @@ fn reset_config(key: &str) -> Result<()> {
     }
 
     let mut cfg = config::ServerConfig::load_from_file()?;
+    let old_value = cfg.get_value(key).unwrap_or_else(|| "(unknown)".to_string());
     cfg.reset_value(key)?;
     cfg.save_to_file()?;
+
+    if verbose {
+        let path = config::ServerConfig::config_file_path().unwrap_or_default();
+        println!("{} Config file: {}", "·".dimmed(), path.display().to_string().dimmed());
+        println!("{} Old value: {}", "·".dimmed(), old_value.dimmed());
+        println!();
+    }
 
     println!(
         "{} Config key '{}' has been reset to default",

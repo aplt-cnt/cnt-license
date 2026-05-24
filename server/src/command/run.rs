@@ -6,13 +6,13 @@ use crate::config;
 /// 执行 `run` 子命令：启动 Axum API 服务器
 ///
 /// 同步入口，内部创建 tokio Runtime 并 block_on
-pub fn execute(host: Option<&str>, port: Option<u16>, licenses_dir: Option<&str>) -> Result<()> {
+pub fn execute(host: Option<&str>, port: Option<u16>, licenses_dir: Option<&str>, verbose: bool) -> Result<()> {
     let rt = tokio::runtime::Runtime::new()?;
-    rt.block_on(async_run(host, port, licenses_dir))
+    rt.block_on(async_run(host, port, licenses_dir, verbose))
 }
 
 /// 异步服务器启动逻辑（从原 main.rs 迁移）
-async fn async_run(host: Option<&str>, port: Option<u16>, licenses_dir: Option<&str>) -> Result<()> {
+async fn async_run(host: Option<&str>, port: Option<u16>, licenses_dir: Option<&str>, verbose: bool) -> Result<()> {
     use axum::{Router, routing::get};
     use colored::Colorize;
     use std::sync::Arc;
@@ -22,6 +22,16 @@ async fn async_run(host: Option<&str>, port: Option<u16>, licenses_dir: Option<&
     // 1. 三级优先级 resolve
     let cfg = config::ServerConfig::load_from_file()?;
     let resolved = cfg.resolve(host, port, licenses_dir);
+
+    if verbose {
+        let config_path = config::ServerConfig::config_file_path().unwrap_or_default();
+        println!("{} Config file: {}", "·".dimmed(), config_path.display().to_string().dimmed());
+        println!("{} host (resolved): {}", "·".dimmed(), resolved.host.cyan());
+        println!("{} port (resolved): {}", "·".dimmed(), resolved.port.to_string().cyan());
+        println!("{} licenses_dir (resolved): {}", "·".dimmed(), resolved.licenses_dir.cyan());
+        println!("{} log_level: {}", "·".dimmed(), resolved.log_level.dimmed());
+        println!();
+    }
 
     // 2. 初始化 tracing（使用配置中的 log_level）
     let env_filter = format!(

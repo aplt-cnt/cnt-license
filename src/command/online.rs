@@ -25,9 +25,17 @@ struct SearchEntry {
 // --- Command implementations ---
 
 /// `clicense online list` — fetches license list from server.
-pub fn execute_list(override_url: Option<&str>) -> Result<()> {
+pub fn execute_list(override_url: Option<&str>, verbose: bool) -> Result<()> {
     let base = http::resolve_url(override_url, None)?;
     let url = format!("{}/api/v1/search", base);
+
+    if verbose {
+        let cfg = crate::config::load_config().unwrap_or_default();
+        println!("{} online_url (config): {}", "·".dimmed(), cfg.update_url.dimmed());
+        println!("{} online_url (resolved): {}", "·".dimmed(), base.cyan());
+        println!("{} GET {}", "·".dimmed(), url.cyan());
+        println!();
+    }
 
     println!(
         "{} Fetching license list from {}...\n",
@@ -36,6 +44,10 @@ pub fn execute_list(override_url: Option<&str>) -> Result<()> {
     );
 
     let resp: SearchResponse = http::get_json(&url)?;
+
+    if verbose {
+        println!("{} Response: {} licenses\n", "·".dimmed(), resp.results.len().to_string().yellow());
+    }
 
     if resp.results.is_empty() {
         println!("  {} No licenses found on the server.", "—".dimmed());
@@ -66,9 +78,15 @@ pub fn execute_list(override_url: Option<&str>) -> Result<()> {
 }
 
 /// `clicense online license <name>` — detailed info from server.
-pub fn execute_license(name: &str, override_url: Option<&str>) -> Result<()> {
+pub fn execute_license(name: &str, override_url: Option<&str>, verbose: bool) -> Result<()> {
     let base = http::resolve_url(override_url, None)?;
     let url = format!("{}/api/v1/licenses/{}/info", base, name);
+
+    if verbose {
+        println!("{} online_url (resolved): {}", "·".dimmed(), base.cyan());
+        println!("{} GET {}", "·".dimmed(), url.cyan());
+        println!();
+    }
 
     println!(
         "{} Fetching license info for '{}'...\n",
@@ -85,11 +103,21 @@ pub fn execute_license(name: &str, override_url: Option<&str>) -> Result<()> {
 }
 
 /// `clicense online source <name>` — raw license content from server.
-pub fn execute_source(name: &str, override_url: Option<&str>) -> Result<()> {
+pub fn execute_source(name: &str, override_url: Option<&str>, verbose: bool) -> Result<()> {
     let base = http::resolve_url(override_url, None)?;
     let url = format!("{}/api/v1/licenses/{}", base, name);
 
+    if verbose {
+        println!("{} online_url (resolved): {}", "·".dimmed(), base.cyan());
+        println!("{} GET {}", "·".dimmed(), url.cyan());
+        println!();
+    }
+
     let body = http::get_raw(&url)?;
+
+    if verbose {
+        println!("{} Response: {} bytes\n", "·".dimmed(), body.len().to_string().yellow());
+    }
 
     // Server returns YAML by default: "{name}: |\n  content..."
     let content = extract_license_content(&body, name)?;
