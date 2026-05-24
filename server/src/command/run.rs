@@ -17,7 +17,6 @@ async fn async_run(host: Option<&str>, port: Option<u16>, licenses_dir: Option<&
     use colored::Colorize;
     use std::sync::Arc;
     use tower_http::cors::CorsLayer;
-    use tower_http::trace::TraceLayer;
 
     // 1. 三级优先级 resolve
     let cfg = config::ServerConfig::load_from_file()?;
@@ -30,13 +29,14 @@ async fn async_run(host: Option<&str>, port: Option<u16>, licenses_dir: Option<&
         println!("{} port (resolved): {}", "·".dimmed(), resolved.port.to_string().cyan());
         println!("{} licenses_dir (resolved): {}", "·".dimmed(), resolved.licenses_dir.cyan());
         println!("{} log_level: {}", "·".dimmed(), resolved.log_level.dimmed());
+        println!("{} access_log: {}", "·".dimmed(), resolved.access_log.to_string().cyan());
         println!();
     }
 
     // 2. 初始化 tracing（使用配置中的 log_level）
     let env_filter = format!(
-        "cnt_license_server={},tower_http={}",
-        resolved.log_level, resolved.log_level
+        "cnt_license_server={}",
+        resolved.log_level
     );
     tracing_subscriber::fmt()
         .with_env_filter(env_filter)
@@ -47,6 +47,8 @@ async fn async_run(host: Option<&str>, port: Option<u16>, licenses_dir: Option<&
     let app_state = crate::state::init_state(&licenses_path)
         .map_err(|e| anyhow!("Failed to load license data from '{}': {}", licenses_path.display(), e))?;
     let shared: crate::state::SharedState = Arc::new(app_state);
+
+    let access_log_enabled = resolved.access_log;
 
     // 4. 构建路由（与原 main.rs 完全一致）
     // --- /api/v1 — primary RESTful routes ---
@@ -82,12 +84,15 @@ async fn async_run(host: Option<&str>, port: Option<u16>, licenses_dir: Option<&
     // --- 404 fallback ---
     let not_found = Router::new().fallback(handler_404_not_found);
 
-    let app = Router::new()
+    let mut app = Router::new()
         .merge(compat)
         .nest("/api/v1", api_v1)
         .merge(not_found)
-        .layer(CorsLayer::permissive())
-        .layer(TraceLayer::new_for_http());
+        .layer(CorsLayer::permissive());
+
+    if access_log_enabled {
+        app = app.layer(axum::middleware::from_fn(access_log_middleware));
+    }
 
     let addr = format!("{}:{}", resolved.host, resolved.port);
     tracing::info!("cnt-license-server listening on {}", addr);
@@ -110,10 +115,40 @@ async fn async_run(host: Option<&str>, port: Option<u16>, licenses_dir: Option<&
         addr.cyan()
     );
 
+    if access_log_enabled {
+        println!("{} Access logging: {}", "·".dimmed(), "enabled".green());
+    } else {
+        println!("{} Access logging: {}", "·".dimmed(), "disabled".yellow());
+    }
+
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(listener, app).await?;
 
     Ok(())
+}
+
+/// 访问日志中间件：在响应完成后输出格式化访问日志
+///
+/// 格式: `"<method> <uri>" <status> <latency_ms>ms`
+async fn access_log_middleware(
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let method = req.method().clone();
+    let uri = req.uri().clone();
+
+    let start = std::time::Instant::now();
+    let response = next.run(req).await;
+    let elapsed = start.elapsed();
+
+    let status = response.status().as_u16();
+    let latency_ms = elapsed.as_secs_f64() * 1000.0;
+
+    let now = time::OffsetDateTime::now_local().unwrap_or_else(|_| time::OffsetDateTime::now_utc());
+    let ts = now.format(&time::format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second].[subsecond digits:3]").unwrap()).unwrap_or_default();
+    println!(r#"[{}] "{} {}" {} {:.3}ms"#, ts, method, uri, status, latency_ms);
+
+    response
 }
 
 /// 404 handler — returns JSON error for unknown routes.

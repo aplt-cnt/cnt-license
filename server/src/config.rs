@@ -13,6 +13,8 @@ pub struct ServerConfig {
     pub licenses_dir: String,
     #[serde(default = "default_log_level")]
     pub log_level: String,
+    #[serde(default = "default_access_log")]
+    pub access_log: bool,
 }
 
 fn default_host() -> String {
@@ -27,6 +29,9 @@ fn default_licenses_dir() -> String {
 fn default_log_level() -> String {
     "info".to_string()
 }
+fn default_access_log() -> bool {
+    true
+}
 
 impl Default for ServerConfig {
     fn default() -> Self {
@@ -35,6 +40,7 @@ impl Default for ServerConfig {
             port: default_port(),
             licenses_dir: default_licenses_dir(),
             log_level: default_log_level(),
+            access_log: default_access_log(),
         }
     }
 }
@@ -73,6 +79,12 @@ pub fn config_keys() -> Vec<ConfigMeta> {
             description: "日志级别",
             default_value: "info",
             value_type: "String",
+        },
+        ConfigMeta {
+            key: "access_log",
+            description: "是否输出访问日志",
+            default_value: "true",
+            value_type: "bool",
         },
     ]
 }
@@ -171,6 +183,7 @@ impl ServerConfig {
                 .map(str::to_string)
                 .unwrap_or_else(|| self.licenses_dir.clone()),
             log_level: self.log_level.clone(),
+            access_log: self.access_log,
         }
     }
 
@@ -181,6 +194,7 @@ impl ServerConfig {
             "port" => Some(self.port.to_string()),
             "licenses_dir" => Some(self.licenses_dir.clone()),
             "log_level" => Some(self.log_level.clone()),
+            "access_log" => Some(self.access_log.to_string()),
             _ => None,
         }
     }
@@ -196,6 +210,11 @@ impl ServerConfig {
             }
             "licenses_dir" => self.licenses_dir = value.to_string(),
             "log_level" => self.log_level = value.to_string(),
+            "access_log" => {
+                self.access_log = value.parse().map_err(|e| {
+                    anyhow!("Invalid access_log value '{}': {}", value, e)
+                })?;
+            }
             _ => {
                 return Err(anyhow!(
                     "Unknown config key: '{}'. Run 'clicense-server config --list' to see all available keys.",
@@ -213,6 +232,7 @@ impl ServerConfig {
             "port" => self.port = default_port(),
             "licenses_dir" => self.licenses_dir = default_licenses_dir(),
             "log_level" => self.log_level = default_log_level(),
+            "access_log" => self.access_log = default_access_log(),
             _ => {
                 return Err(anyhow!(
                     "Unknown config key: '{}'. Run 'clicense-server config --list' to see all available keys.",
