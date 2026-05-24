@@ -1,7 +1,11 @@
 [package]
-name = "cnt-license-server"
+name = "clicense-server"
 version = "0.1.0"
 edition = "2024"
+authors = ["TaimWay <taimway@gmail.com>"]
+license = "GPL-3.0"
+description = "A CLI tool for generating open source license files."
+repository = "https://github.com/aplt-cnt/cnt-license"
 
 [dependencies]
 axum = "0.8"
@@ -13,3 +17,8 @@ tower-http = { version = "0.6", features = ["cors", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 toml = "0.8"
+clap = { version = "4.6", features = ["derive"] }
+colored = "3"
+anyhow = "1"
+ureq = "3"
+dirs = "6"

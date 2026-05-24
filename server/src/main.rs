@@ -1,80 +1,77 @@
+mod cli;
+mod command;
 mod config;
 mod data;
 mod handlers;
+mod http;
 mod models;
 mod state;
 
-use axum::{Router, http::StatusCode, response::Json, routing::get};
-use serde_json::json;
-use std::sync::Arc;
-use tower_http::cors::CorsLayer;
-use tower_http::trace::TraceLayer;
+use anyhow::Result;
+use clap::Parser;
+use colored::Colorize;
 
-#[tokio::main]
-async fn main() {
-    tracing_subscriber::fmt()
-        .with_env_filter("cnt_license_server=debug,tower_http=debug")
-        .init();
-
-    let config = config::Config::from_env();
-    let licenses_path = config.licenses_dir.clone();
-    let app_state = state::init_state(&licenses_path)
-        .unwrap_or_else(|e| panic!("Failed to load license data from '{}': {}", licenses_path.display(), e));
-    let shared: state::SharedState = Arc::new(app_state);
-
-    // --- /api/v1 — primary RESTful routes ---
-    let api_v1 = Router::new()
-        .route("/health", get(handlers::health::health_check))
-        .route("/version", get(handlers::version::get_version))
-        .route("/licenses", get(handlers::licenses::list_all))
-        .route("/licenses/{id}", get(handlers::licenses::get_one))
-        .route("/licenses/{id}/info", get(handlers::licenses::get_info))
-        .route("/search", get(handlers::search::search))
-        .with_state(shared.clone());
-
-    // --- Backward-compatible aliases ---
-    let compat = Router::new()
-        .route("/", get(handlers::licenses::list_all))
-        .route("/health", get(handlers::health::health_check))
-        .route("/version", get(handlers::version::get_version))
-        .route("/licenses", get(handlers::licenses::list_all))
-        .route("/licenses/{id}", get(handlers::licenses::get_one))
-        .route("/licenses/{id}/info", get(handlers::licenses::get_info))
-        .route("/search", get(handlers::search::search))
-        .with_state(shared.clone());
-
-    // --- 404 fallback ---
-    let not_found = Router::new()
-        .fallback(handler_404_not_found);
-
-    let app = Router::new()
-        .merge(compat)
-        .nest("/api/v1", api_v1)
-        .merge(not_found)
-        .layer(CorsLayer::permissive())
-        .layer(TraceLayer::new_for_http());
-
-    let addr = "0.0.0.0:3000";
-    tracing::info!("cnt-license-server listening on {}", addr);
-
-    // Log the API structure
-    tracing::info!("Routes:");
-    tracing::info!("  GET /api/v1/health             — Health check");
-    tracing::info!("  GET /api/v1/version            — Server version");
-    tracing::info!("  GET /api/v1/licenses           — List all license templates");
-    tracing::info!("  GET /api/v1/licenses/{{id}}     — Get one license template");
-    tracing::info!("  GET /api/v1/licenses/{{id}}/info — Get license metadata");
-    tracing::info!("  GET /api/v1/search?q=          — Search licenses");
-    tracing::info!("  (backward-compat aliases: /health, /licenses, /search, etc.)");
-
-    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+fn main() {
+    if let Err(e) = run() {
+        eprintln!("{} {}", "Error:".red().bold(), e.to_string().red());
+        std::process::exit(1);
+    }
 }
 
-/// 404 handler — returns JSON error for unknown routes.
-async fn handler_404_not_found() -> (StatusCode, Json<serde_json::Value>) {
-    (
-        StatusCode::NOT_FOUND,
-        Json(json!({"error": "Not found"})),
-    )
+fn run() -> Result<()> {
+    let cli = cli::Cli::parse();
+    match cli.command {
+        cli::Commands::Init { licenses_dir, force } => {
+            command::init::execute(licenses_dir.as_deref(), force)?;
+        }
+        cli::Commands::Config {
+            key,
+            value,
+            list,
+            reset,
+        } => {
+            command::config_cmd::execute(
+                key.as_deref(),
+                value.as_deref(),
+                list,
+                reset.as_deref(),
+            )?;
+        }
+        cli::Commands::Clone {
+            url,
+            licenses_dir,
+            force,
+        } => {
+            command::clone::execute(&url, licenses_dir.as_deref(), force)?;
+        }
+        cli::Commands::Version => {
+            println!("clicense-server {}", env!("CARGO_PKG_VERSION"));
+        }
+        cli::Commands::Run {
+            host,
+            port,
+            licenses_dir,
+        } => {
+            command::run::execute(host.as_deref(), port, licenses_dir.as_deref())?;
+        }
+        cli::Commands::Add {
+            file,
+            name,
+            force,
+            licenses_dir,
+        } => {
+            command::add::execute(&file, &name, force, licenses_dir.as_deref())?;
+        }
+        cli::Commands::Remove {
+            names,
+            all,
+            licenses_dir,
+        } => {
+            command::remove::execute(&names, all, licenses_dir.as_deref())?;
+        }
+        cli::Commands::List { name, licenses_dir } => {
+            command::list::execute(name.as_deref(), licenses_dir.as_deref())?;
+        }
+    }
+    Ok(())
 }
