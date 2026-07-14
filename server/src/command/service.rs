@@ -145,7 +145,7 @@ WantedBy=multi-user.target
     }
 }
 
-fn service_uninstall(_verbose: bool) -> Result<()> {
+fn service_uninstall(verbose: bool) -> Result<()> {
     #[cfg(not(target_os = "linux"))]
     {
         return Err(anyhow!("Service management is only supported on Linux."));
