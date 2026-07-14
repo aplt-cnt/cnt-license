@@ -62,7 +62,10 @@ fn list_all(builtin_only: bool, custom_only: bool) -> Result<()> {
         }
         println!("  {} Custom:", "📦".magenta());
         for name in &custom {
-            println!("    {:<16} {}", name.yellow(), "(custom)".dimmed());
+            let meta_name = metadata::get_meta_with_custom(name)
+                .map(|m| m.name)
+                .unwrap_or_else(|| "(custom)".to_string());
+            println!("    {:<16} {}", name.yellow(), meta_name.dimmed());
         }
     }
 
@@ -82,7 +85,7 @@ fn list_all(builtin_only: bool, custom_only: bool) -> Result<()> {
 
 /// Shows detailed info for a specific license.
 fn show_detail(name: &str) -> Result<()> {
-    let meta = metadata::get_meta(name).ok_or_else(|| {
+    let meta = metadata::get_meta_with_custom(name).ok_or_else(|| {
         // Check if it's a custom license
         if custom_exists(name) {
             anyhow!(
@@ -97,7 +100,7 @@ fn show_detail(name: &str) -> Result<()> {
         }
     })?;
 
-    print_detailed(name, meta);
+    print_detailed(name, &meta);
     Ok(())
 }
 
@@ -154,9 +157,16 @@ pub fn print_detailed(_id: &str, meta: &LicenseMeta) {
             perm_colored, cond_colored, lim_colored
         );
     }
+
+    if !meta.custom.is_empty() {
+        println!();
+        println!("{}", "Custom fields:".bold());
+        for (k, v) in &meta.custom {
+            println!("  {}: {}", k.dimmed(), v);
+        }
+    }
 }
 
-/// Scans the custom licenses directory and returns file names.
 fn scan_custom() -> Result<Vec<String>> {
     let licenses_dir = config::licenses_dir()?;
     if !licenses_dir.exists() {

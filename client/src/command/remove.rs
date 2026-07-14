@@ -29,6 +29,7 @@ pub fn execute(names: &[String], verbose: bool) -> Result<()> {
     let mut removed = 0u32;
     let mut not_found = Vec::new();
     let mut errors = Vec::new();
+    let meta_dir = config::meta_dir().unwrap_or_default();
 
     for name in names {
         let path = licenses_dir.join(name);
@@ -48,7 +49,14 @@ pub fn execute(names: &[String], verbose: bool) -> Result<()> {
             }
             Err(e) => {
                 errors.push((name.as_str(), e));
+                continue;
             }
+        }
+
+        let meta_file = meta_dir.join(format!("{}.meta.toml", name));
+        if meta_file.exists() {
+            let _ = std::fs::remove_file(&meta_file);
+            if verbose { println!("{} Deleted meta: {}", "·".dimmed(), meta_file.display().to_string().dimmed()); }
         }
     }
 
@@ -100,6 +108,7 @@ pub fn execute_all(verbose: bool) -> Result<()> {
 
     let mut removed = 0u32;
     let mut errors = Vec::new();
+    let meta_dir = config::meta_dir().unwrap_or_default();
 
     for name in &entries {
         let path = licenses_dir.join(name);
@@ -115,7 +124,14 @@ pub fn execute_all(verbose: bool) -> Result<()> {
             }
             Err(e) => {
                 errors.push((name.as_str(), e));
+                continue;
             }
+        }
+
+        let meta_file = meta_dir.join(format!("{}.meta.toml", name));
+        if meta_file.exists() {
+            let _ = std::fs::remove_file(&meta_file);
+            if verbose { println!("{} Deleted meta: {}", "·".dimmed(), meta_file.display().to_string().dimmed()); }
         }
     }
 

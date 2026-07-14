@@ -120,6 +120,11 @@ pub fn licenses_dir() -> Result<PathBuf> {
     Ok(config_dir()?.join("licenses"))
 }
 
+/// Returns the path to the custom metadata directory (~/.clicense/meta/)
+pub fn meta_dir() -> Result<PathBuf> {
+    Ok(config_dir()?.join("meta"))
+}
+
 /// Ensures that the config directory exists, creating it if necessary.
 pub fn ensure_config_dir() -> Result<()> {
     let dir = config_dir()?;
@@ -132,6 +137,15 @@ pub fn ensure_config_dir() -> Result<()> {
 /// Ensures that the licenses directory exists, creating it if necessary.
 pub fn ensure_licenses_dir() -> Result<()> {
     let dir = licenses_dir()?;
+    if !dir.exists() {
+        fs::create_dir_all(&dir)?;
+    }
+    Ok(())
+}
+
+/// Ensures that the metadata directory exists, creating it if necessary.
+pub fn ensure_meta_dir() -> Result<()> {
+    let dir = meta_dir()?;
     if !dir.exists() {
         fs::create_dir_all(&dir)?;
     }

@@ -19,12 +19,14 @@ pub struct LicenseMeta {
     pub conditions: Vec<String>,
     #[serde(default)]
     pub limitations: Vec<String>,
+    #[serde(default)]
+    pub custom: HashMap<String, String>,
 }
 
 /// Static cache of all built-in license metadata.
 static META: LazyLock<HashMap<String, LicenseMeta>> = LazyLock::new(|| {
     let raw: HashMap<String, toml::Value> =
-        toml::from_str(include_str!("../licenses-meta.toml"))
+        toml::from_str(include_str!("../../licenses-meta.toml"))
             .expect("Failed to parse licenses-meta.toml");
 
     raw.into_iter()
@@ -41,6 +43,7 @@ static META: LazyLock<HashMap<String, LicenseMeta>> = LazyLock::new(|| {
                 permissions: extract_strings(&val, "permissions"),
                 conditions: extract_strings(&val, "conditions"),
                 limitations: extract_strings(&val, "limitations"),
+                custom: HashMap::new(),
             };
             (id, meta)
         })
@@ -59,9 +62,43 @@ fn extract_strings(val: &toml::Value, field: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// Looks up metadata for a specific license id.
+/// Looks up metadata for a specific license id (built-in only).
 pub fn get_meta(id: &str) -> Option<&'static LicenseMeta> {
     META.get(id)
+}
+
+/// Returns metadata for a license id, checking built-in first, then custom from disk.
+pub fn get_meta_with_custom(id: &str) -> Option<LicenseMeta> {
+    if let Some(meta) = META.get(id) {
+        return Some(meta.clone());
+    }
+    load_custom_meta().ok().and_then(|custom| custom.get(id).cloned())
+}
+
+/// Loads custom metadata from ~/.clicense/meta/*.meta.toml files.
+pub fn load_custom_meta() -> Result<HashMap<String, LicenseMeta>, Box<dyn std::error::Error>> {
+    let meta_dir = crate::config::meta_dir()?;
+    let mut custom = HashMap::new();
+
+    if !meta_dir.exists() {
+        return Ok(custom);
+    }
+
+    for entry in std::fs::read_dir(&meta_dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.extension().is_some_and(|ext| ext == "toml") {
+            if let Some(file_stem) = path.file_stem().and_then(|s| s.to_str()) {
+                if let Some(id) = file_stem.strip_suffix(".meta") {
+                    let content = std::fs::read_to_string(&path)?;
+                    let meta: LicenseMeta = toml::from_str(&content)?;
+                    custom.insert(id.to_string(), meta);
+                }
+            }
+        }
+    }
+
+    Ok(custom)
 }
 
 /// Returns all built-in license IDs sorted alphabetically.

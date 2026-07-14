@@ -69,16 +69,16 @@ fn builtin_templates() -> &'static HashMap<&'static str, &'static str> {
     use std::sync::LazyLock;
     static TEMPLATES: LazyLock<HashMap<&str, &str>> = LazyLock::new(|| {
         let mut m = HashMap::new();
-        m.insert("mit", include_str!("../licenses/mit.txt"));
-        m.insert("apache-2.0", include_str!("../licenses/apache-2.0.txt"));
-        m.insert("gpl-3.0", include_str!("../licenses/gpl-3.0.txt"));
-        m.insert("lgpl-3.0", include_str!("../licenses/lgpl-3.0.txt"));
-        m.insert("bsd-3-clause", include_str!("../licenses/bsd-3-clause.txt"));
-        m.insert("bsd-2-clause", include_str!("../licenses/bsd-2-clause.txt"));
-        m.insert("mpl-2.0", include_str!("../licenses/mpl-2.0.txt"));
-        m.insert("unlicense", include_str!("../licenses/unlicense.txt"));
-        m.insert("isc", include_str!("../licenses/isc.txt"));
-        m.insert("epl-2.0", include_str!("../licenses/epl-2.0.txt"));
+        m.insert("mit", include_str!("../../licenses/mit.txt"));
+        m.insert("apache-2.0", include_str!("../../licenses/apache-2.0.txt"));
+        m.insert("gpl-3.0", include_str!("../../licenses/gpl-3.0.txt"));
+        m.insert("lgpl-3.0", include_str!("../../licenses/lgpl-3.0.txt"));
+        m.insert("bsd-3-clause", include_str!("../../licenses/bsd-3-clause.txt"));
+        m.insert("bsd-2-clause", include_str!("../../licenses/bsd-2-clause.txt"));
+        m.insert("mpl-2.0", include_str!("../../licenses/mpl-2.0.txt"));
+        m.insert("unlicense", include_str!("../../licenses/unlicense.txt"));
+        m.insert("isc", include_str!("../../licenses/isc.txt"));
+        m.insert("epl-2.0", include_str!("../../licenses/epl-2.0.txt"));
         m
     });
     &TEMPLATES

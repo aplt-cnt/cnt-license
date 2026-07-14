@@ -1,3 +1,5 @@
+use std::io::Read;
+
 use anyhow::{anyhow, Result};
 use colored::Colorize;
 use std::collections::HashMap;
@@ -6,7 +8,6 @@ use std::fs;
 use crate::config;
 use crate::http;
 
-/// Status of a single license template after comparing remote vs local.
 enum ItemStatus {
     Added,
     Updated,
@@ -14,15 +15,14 @@ enum ItemStatus {
     LocalOnly,
 }
 
-/// A single diff result for one license template.
 struct DiffItem {
     name: String,
     status: ItemStatus,
 }
 
-/// Executes `clicense update`: downloads the latest license templates
-/// from the configured (or overridden) update_url, compares against local
-/// files, and reports a detailed diff.
+/// Executes `clicense update`: downloads the latest license templates and metadata
+/// from the configured update_url via /api/v1/export (.zip), compares against
+/// local files, and applies changes.
 pub fn execute(override_url: Option<&str>, verbose: bool) -> Result<()> {
     let base = http::resolve_url(override_url, None)?;
 
@@ -30,10 +30,12 @@ pub fn execute(override_url: Option<&str>, verbose: bool) -> Result<()> {
         let cfg = config::load_config().unwrap_or_default();
         let config_path = config::config_file_path().unwrap_or_default();
         let licenses_path = config::licenses_dir().unwrap_or_default();
+        let meta_path = config::meta_dir().unwrap_or_default();
         println!("{} Config file: {}", "·".dimmed(), config_path.display().to_string().dimmed());
         println!("{} update_url (config): {}", "·".dimmed(), cfg.update_url.dimmed());
         println!("{} update_url (resolved): {}", "·".dimmed(), base.cyan());
         println!("{} Local licenses dir: {}", "·".dimmed(), licenses_path.display().to_string().dimmed());
+        println!("{} Local meta dir: {}", "·".dimmed(), meta_path.display().to_string().dimmed());
         println!();
     }
 
@@ -43,22 +45,67 @@ pub fn execute(override_url: Option<&str>, verbose: bool) -> Result<()> {
         base.cyan()
     );
 
-    // --- HTTP fetch (YAML format) ---
-    let url = format!("{}/api/v1/licenses", base);
+    let url = format!("{}/api/v1/export", base);
     if verbose {
         println!("{} GET {}", "·".dimmed(), url.cyan());
     }
-    let body = http::get_yaml(&url)?;
-    if verbose {
-        println!("{} Response: {} bytes\n", "·".dimmed(), body.len().to_string().yellow());
+
+    let response = ureq::get(&url).call().map_err(|e| {
+        anyhow!("Network error connecting to '{}': {}", url, e)
+    })?;
+
+    if response.status() != 200 {
+        return Err(anyhow!(
+            "Server returned status {} for '{}'",
+            response.status(),
+            url
+        ));
     }
 
-    let remote: HashMap<String, String> = serde_yaml::from_str(&body)
-        .map_err(|e| anyhow!("Failed to parse response as license templates: {}", e))?;
+    let mut zip_bytes = Vec::new();
+    let mut body = response.into_body();
+    body.read_to_vec().map(|v| zip_bytes = v).map_err(|e| {
+        anyhow!("Failed to read response body from '{}': {}", url, e)
+    })?;
 
-    // --- Scan local templates ---
+    let cursor = std::io::Cursor::new(zip_bytes);
+    let mut archive = zip::ZipArchive::new(cursor)
+        .map_err(|e| anyhow!("Failed to read zip archive: {}", e))?;
+
+    let mut remote_templates: HashMap<String, String> = HashMap::new();
+    let mut remote_meta: HashMap<String, String> = HashMap::new();
+
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i)?;
+        let entry_name = entry.name().to_string();
+
+        if let Some(relative) = entry_name.strip_prefix("licenses/") {
+            if relative.ends_with(".txt") && !relative.contains('/') {
+                let id = relative.strip_suffix(".txt").unwrap_or(relative).to_string();
+                let mut content = String::new();
+                entry.read_to_string(&mut content)?;
+                remote_templates.insert(id, content);
+            }
+        } else if let Some(relative) = entry_name.strip_prefix("meta/") {
+            if relative.ends_with(".meta.toml") && !relative.contains('/') {
+                let id = relative.strip_suffix(".meta.toml").unwrap_or(relative).to_string();
+                let mut content = String::new();
+                entry.read_to_string(&mut content)?;
+                remote_meta.insert(id, content);
+            }
+        }
+    }
+
+    if verbose {
+        println!("{} Response: {} templates + {} meta files\n", "·".dimmed(),
+            remote_templates.len().to_string().yellow(),
+            remote_meta.len().to_string().yellow());
+    }
+
     let licenses_dir = config::licenses_dir()?;
-    let mut local: HashMap<String, String> = HashMap::new();
+    let meta_dir = config::meta_dir()?;
+    let mut local_templates: HashMap<String, String> = HashMap::new();
+
     if licenses_dir.exists() {
         for entry in fs::read_dir(&licenses_dir)? {
             let entry = entry?;
@@ -71,20 +118,19 @@ pub fn execute(override_url: Option<&str>, verbose: bool) -> Result<()> {
                     continue;
                 }
                 if let Ok(content) = fs::read_to_string(&path) {
-                    local.insert(name.to_string(), content);
+                    local_templates.insert(name.to_string(), content);
                 }
             }
         }
     }
 
-    // --- Diff ---
     let mut diff_items: Vec<DiffItem> = Vec::new();
 
-    for name in remote.keys() {
-        let status = match local.get(name) {
+    for name in remote_templates.keys() {
+        let status = match local_templates.get(name) {
             None => ItemStatus::Added,
             Some(local_content) => {
-                if *local_content == remote[name] {
+                if *local_content == remote_templates[name] {
                     ItemStatus::Unchanged
                 } else {
                     ItemStatus::Updated
@@ -97,8 +143,8 @@ pub fn execute(override_url: Option<&str>, verbose: bool) -> Result<()> {
         });
     }
 
-    for name in local.keys() {
-        if !remote.contains_key(name) {
+    for name in local_templates.keys() {
+        if !remote_templates.contains_key(name) {
             diff_items.push(DiffItem {
                 name: name.clone(),
                 status: ItemStatus::LocalOnly,
@@ -108,7 +154,6 @@ pub fn execute(override_url: Option<&str>, verbose: bool) -> Result<()> {
 
     diff_items.sort_by(|a, b| a.name.cmp(&b.name));
 
-    // --- Counters ---
     let mut added = 0u32;
     let mut updated = 0u32;
     let mut unchanged = 0u32;
@@ -119,7 +164,6 @@ pub fn execute(override_url: Option<&str>, verbose: bool) -> Result<()> {
         return Ok(());
     }
 
-    // Header
     println!(
         "  {:<30} {}",
         "Name".bold().underline(),
@@ -151,21 +195,26 @@ pub fn execute(override_url: Option<&str>, verbose: bool) -> Result<()> {
         }
     }
 
-    // --- Apply changes ---
     if added > 0 || updated > 0 {
         config::ensure_licenses_dir()?;
+        config::ensure_meta_dir()?;
+
         for item in &diff_items {
             match item.status {
                 ItemStatus::Added | ItemStatus::Updated => {
                     let path = licenses_dir.join(&item.name);
-                    fs::write(&path, &remote[&item.name])?;
+                    fs::write(&path, &remote_templates[&item.name])?;
+
+                    if let Some(meta_content) = remote_meta.get(&item.name) {
+                        let meta_path = meta_dir.join(format!("{}.meta.toml", item.name));
+                        fs::write(&meta_path, meta_content)?;
+                    }
                 }
                 _ => {}
             }
         }
     }
 
-    // --- Summary ---
     println!();
     println!("{}", "Summary:".bold());
     if added > 0 {

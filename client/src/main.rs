@@ -8,7 +8,7 @@ mod http;
 mod license;
 mod metadata;
 
-const VERSION: &str = "0.1.0";
+const VERSION: &str = "1.1.0";
 
 /// clicense - A CLI tool for generating open source license files
 #[derive(Parser, Debug)]
@@ -69,6 +69,22 @@ enum Commands {
         /// Overwrite if a custom license with this name already exists
         #[arg(long)]
         force: bool,
+        #[arg(long)]
+        display_name: Option<String>,
+        #[arg(long)]
+        description: Option<String>,
+        #[arg(long)]
+        spdx_id: Option<String>,
+        #[arg(long)]
+        permissions: Vec<String>,
+        #[arg(long)]
+        conditions: Vec<String>,
+        #[arg(long)]
+        limitations: Vec<String>,
+        #[arg(long)]
+        keywords: Vec<String>,
+        #[arg(long, value_parser = parse_key_value)]
+        custom: Vec<String>,
     },
     /// Remove one or more custom license templates
     Remove {
@@ -168,8 +184,13 @@ fn run() -> Result<()> {
         Commands::Update { update_url } => {
             command::update::execute(update_url.as_deref(), verbose)?;
         }
-        Commands::Add { file, name, force } => {
-            command::add::execute(&file, &name, force, verbose)?;
+        Commands::Add { file, name, force, display_name, description, spdx_id, permissions, conditions, limitations, keywords, custom } => {
+            command::add::execute(
+                &file, &name, force,
+                display_name.as_deref(), description.as_deref(), spdx_id.as_deref(),
+                &permissions, &conditions, &limitations, &keywords, &custom,
+                verbose,
+            )?;
         }
         Commands::Remove { names, all } => {
             if all {
@@ -196,4 +217,15 @@ fn run() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn parse_key_value(s: &str) -> Result<String, String> {
+    if s.contains('=') {
+        Ok(s.to_string())
+    } else {
+        Err(format!(
+            "Invalid key=value pair: '{}'. Expected format: KEY=VALUE",
+            s
+        ))
+    }
 }
