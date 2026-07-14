@@ -3,7 +3,6 @@ use colored::Colorize;
 
 use crate::config;
 
-/// 内置许可证模板 ID 列表
 const BUILTIN_LICENSES: &[&str] = &[
     "mit",
     "apache-2.0",
@@ -17,7 +16,6 @@ const BUILTIN_LICENSES: &[&str] = &[
     "epl-2.0",
 ];
 
-/// 获取内置许可证模板内容
 fn get_builtin_content(id: &str) -> Option<&'static str> {
     match id {
         "mit" => Some(include_str!("../../../licenses/mit.txt")),
@@ -34,30 +32,33 @@ fn get_builtin_content(id: &str) -> Option<&'static str> {
     }
 }
 
-/// 执行 `init` 子命令：初始化服务器配置与许可证模板
-///
-/// # Arguments
-/// * `licenses_dir` - CLI 覆盖的许可证目录路径
-/// * `force` - 是否覆盖已存在的模板文件
-pub fn execute(licenses_dir: Option<&str>, force: bool, verbose: bool) -> Result<()> {
+/// Executes the `init` command: initializes server config and license templates.
+pub fn execute(
+    config_dir: Option<&str>,
+    licenses_dir: Option<&str>,
+    meta_dir: Option<&str>,
+    force: bool,
+    verbose: bool,
+) -> Result<()> {
     if verbose {
-        let config_path = config::ServerConfig::config_file_path().unwrap_or_default();
+        let config_path = config::ServerConfig::config_file_path(config_dir).unwrap_or_default();
         println!("{} Config file: {}", "·".dimmed(), config_path.display().to_string().dimmed());
         println!("{} force: {}", "·".dimmed(), force.to_string().dimmed());
         if let Some(d) = licenses_dir {
             println!("{} licenses_dir override: {}", "·".dimmed(), d.cyan());
         }
+        if let Some(d) = meta_dir {
+            println!("{} meta_dir override: {}", "·".dimmed(), d.cyan());
+        }
         println!();
     }
 
-    // 1. 确保配置目录存在
-    config::ServerConfig::ensure_config_dir()?;
+    config::ServerConfig::ensure_config_dir(config_dir)?;
 
-    // 2. 创建默认配置文件（如不存在）
-    let config_path = config::ServerConfig::config_file_path()?;
+    let config_path = config::ServerConfig::config_file_path(config_dir)?;
     if !config_path.exists() {
         let defaults = config::ServerConfig::defaults();
-        defaults.save_to_file()?;
+        defaults.save_to_file(config_dir)?;
         println!(
             "{} Created config file: {}",
             "✓".green().bold(),
@@ -71,12 +72,11 @@ pub fn execute(licenses_dir: Option<&str>, force: bool, verbose: bool) -> Result
         );
     }
 
-    // 3. 加载配置并解析许可证目录
-    let cfg = config::ServerConfig::load_from_file()?;
-    let resolved_dir = config::resolve_licenses_dir(licenses_dir, &cfg);
+    let cfg = config::ServerConfig::load_from_file(config_dir)?;
+    let resolved_licenses_dir = config::resolve_licenses_dir(licenses_dir, &cfg);
+    let resolved_meta_dir = config::resolve_meta_dir(meta_dir, &cfg);
 
-    // 4. 创建许可证目录
-    let dir = std::path::Path::new(&resolved_dir);
+    let dir = std::path::Path::new(&resolved_licenses_dir);
     if !dir.exists() {
         std::fs::create_dir_all(dir).map_err(|e| {
             anyhow::anyhow!(
@@ -88,17 +88,38 @@ pub fn execute(licenses_dir: Option<&str>, force: bool, verbose: bool) -> Result
         println!(
             "{} Created licenses directory: {}",
             "✓".green().bold(),
-            resolved_dir.cyan()
+            resolved_licenses_dir.cyan()
         );
     } else {
         println!(
             "{} Licenses directory already exists: {}",
             "—".dimmed(),
-            resolved_dir.cyan()
+            resolved_licenses_dir.cyan()
         );
     }
 
-    // 5. 写入内置许可证模板
+    let meta_path = std::path::Path::new(&resolved_meta_dir);
+    if !meta_path.exists() {
+        std::fs::create_dir_all(meta_path).map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to create meta directory '{}': {}",
+                meta_path.display(),
+                e
+            )
+        })?;
+        println!(
+            "{} Created meta directory: {}",
+            "✓".green().bold(),
+            resolved_meta_dir.cyan()
+        );
+    } else {
+        println!(
+            "{} Meta directory already exists: {}",
+            "—".dimmed(),
+            resolved_meta_dir.cyan()
+        );
+    }
+
     let mut written = 0u32;
     let mut skipped = 0u32;
 
@@ -133,7 +154,6 @@ pub fn execute(licenses_dir: Option<&str>, force: bool, verbose: bool) -> Result
         }
     }
 
-    // 6. 摘要
     println!();
     println!(
         "{} Initialized {} license templates ({} written, {} skipped)",

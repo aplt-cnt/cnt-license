@@ -4,33 +4,36 @@ use colored::Colorize;
 use crate::config;
 
 /// Executes the `list` command: lists or displays license templates.
-///
-/// # Arguments
-/// * `name`         - Optional license name to show details
-/// * `licenses_dir` - CLI override for licenses directory
-pub fn execute(name: Option<&str>, licenses_dir: Option<&str>, verbose: bool) -> Result<()> {
-    // 解析许可证目录
-    let cfg = config::ServerConfig::load_from_file()?;
-    let resolved_dir = config::resolve_licenses_dir(licenses_dir, &cfg);
-    let dir = std::path::Path::new(&resolved_dir);
+pub fn execute(
+    config_dir: Option<&str>,
+    name: Option<&str>,
+    licenses_dir: Option<&str>,
+    meta_dir: Option<&str>,
+    verbose: bool,
+) -> Result<()> {
+    let cfg = config::ServerConfig::load_from_file(config_dir)?;
+    let resolved_licenses_dir = config::resolve_licenses_dir(licenses_dir, &cfg);
+    let resolved_meta_dir = config::resolve_meta_dir(meta_dir, &cfg);
+    let dir = std::path::Path::new(&resolved_licenses_dir);
+    let meta_path = std::path::Path::new(&resolved_meta_dir);
 
     if verbose {
-        let config_path = config::ServerConfig::config_file_path().unwrap_or_default();
+        let config_path = config::ServerConfig::config_file_path(config_dir).unwrap_or_default();
         println!("{} Config file: {}", "·".dimmed(), config_path.display().to_string().dimmed());
-        println!("{} Licenses dir: {}", "·".dimmed(), resolved_dir.cyan());
+        println!("{} Licenses dir: {}", "·".dimmed(), resolved_licenses_dir.cyan());
+        println!("{} Meta dir: {}", "·".dimmed(), resolved_meta_dir.cyan());
         println!("{} Dir exists: {}", "·".dimmed(), dir.exists().to_string().dimmed());
         println!();
     }
 
     if let Some(name) = name {
-        return show_detail(dir, name);
+        return show_detail(dir, meta_path, name);
     }
 
-    list_all(dir)
+    list_all(dir, meta_path)
 }
 
-/// 列出所有许可证模板（ID + 文件大小）
-fn list_all(dir: &std::path::Path) -> Result<()> {
+fn list_all(dir: &std::path::Path, meta_path: &std::path::Path) -> Result<()> {
     if !dir.exists() {
         println!(
             "  {} No licenses directory found at '{}'",
@@ -45,8 +48,7 @@ fn list_all(dir: &std::path::Path) -> Result<()> {
         return Ok(());
     }
 
-    // 加载元信息
-    let meta_map = crate::data::load_meta().unwrap_or_default();
+    let meta_map = crate::data::load_meta(meta_path).unwrap_or_default();
 
     let mut entries: Vec<(String, u64)> = Vec::new();
     for entry in std::fs::read_dir(dir)? {
@@ -72,7 +74,6 @@ fn list_all(dir: &std::path::Path) -> Result<()> {
         return Ok(());
     }
 
-    // 按名称排序
     entries.sort_by(|a, b| a.0.cmp(&b.0));
 
     println!(
@@ -102,8 +103,7 @@ fn list_all(dir: &std::path::Path) -> Result<()> {
     Ok(())
 }
 
-/// 显示单个许可证模板的详细内容
-fn show_detail(dir: &std::path::Path, name: &str) -> Result<()> {
+fn show_detail(dir: &std::path::Path, meta_path: &std::path::Path, name: &str) -> Result<()> {
     let file_path = dir.join(format!("{}.txt", name));
 
     if !file_path.exists() {
@@ -118,8 +118,7 @@ fn show_detail(dir: &std::path::Path, name: &str) -> Result<()> {
         anyhow!("Failed to read '{}': {}", file_path.display(), e)
     })?;
 
-    // 加载元信息
-    let meta_map = crate::data::load_meta().unwrap_or_default();
+    let meta_map = crate::data::load_meta(meta_path).unwrap_or_default();
 
     println!("{} {}", name.cyan().bold(), format!("({} bytes)", content.len()).yellow());
     println!();
@@ -128,6 +127,18 @@ fn show_detail(dir: &std::path::Path, name: &str) -> Result<()> {
         println!("  {} {}", "Name:".dimmed(), meta.name.green());
         println!("  {} {}", "SPDX:".dimmed(), meta.spdx_id.green());
         println!("  {} {}", "Description:".dimmed(), meta.description);
+        if !meta.permissions.is_empty() {
+            println!("  {} {}", "Permissions:".dimmed(), meta.permissions.join(", "));
+        }
+        if !meta.conditions.is_empty() {
+            println!("  {} {}", "Conditions:".dimmed(), meta.conditions.join(", "));
+        }
+        if !meta.limitations.is_empty() {
+            println!("  {} {}", "Limitations:".dimmed(), meta.limitations.join(", "));
+        }
+        if !meta.custom.is_empty() {
+            println!("  {} {:?}", "Custom:".dimmed(), meta.custom);
+        }
         println!();
     }
 

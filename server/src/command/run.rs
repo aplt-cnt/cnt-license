@@ -3,37 +3,47 @@ use serde_json::json;
 
 use crate::config;
 
-/// 执行 `run` 子命令：启动 Axum API 服务器
-///
-/// 同步入口，内部创建 tokio Runtime 并 block_on
-pub fn execute(host: Option<&str>, port: Option<u16>, licenses_dir: Option<&str>, verbose: bool) -> Result<()> {
+/// Executes the `run` command: starts the Axum API server.
+pub fn execute(
+    config_dir: Option<&str>,
+    host: Option<&str>,
+    port: Option<u16>,
+    licenses_dir: Option<&str>,
+    meta_dir: Option<&str>,
+    verbose: bool,
+) -> Result<()> {
     let rt = tokio::runtime::Runtime::new()?;
-    rt.block_on(async_run(host, port, licenses_dir, verbose))
+    rt.block_on(async_run(config_dir, host, port, licenses_dir, meta_dir, verbose))
 }
 
-/// 异步服务器启动逻辑（从原 main.rs 迁移）
-async fn async_run(host: Option<&str>, port: Option<u16>, licenses_dir: Option<&str>, verbose: bool) -> Result<()> {
+async fn async_run(
+    config_dir: Option<&str>,
+    host: Option<&str>,
+    port: Option<u16>,
+    licenses_dir: Option<&str>,
+    meta_dir: Option<&str>,
+    verbose: bool,
+) -> Result<()> {
     use axum::{Router, routing::get};
     use colored::Colorize;
     use std::sync::Arc;
     use tower_http::cors::CorsLayer;
 
-    // 1. 三级优先级 resolve
-    let cfg = config::ServerConfig::load_from_file()?;
-    let resolved = cfg.resolve(host, port, licenses_dir);
+    let cfg = config::ServerConfig::load_from_file(config_dir)?;
+    let resolved = cfg.resolve(host, port, licenses_dir, meta_dir);
 
     if verbose {
-        let config_path = config::ServerConfig::config_file_path().unwrap_or_default();
+        let config_path = config::ServerConfig::config_file_path(config_dir).unwrap_or_default();
         println!("{} Config file: {}", "·".dimmed(), config_path.display().to_string().dimmed());
         println!("{} host (resolved): {}", "·".dimmed(), resolved.host.cyan());
         println!("{} port (resolved): {}", "·".dimmed(), resolved.port.to_string().cyan());
         println!("{} licenses_dir (resolved): {}", "·".dimmed(), resolved.licenses_dir.cyan());
+        println!("{} meta_dir (resolved): {}", "·".dimmed(), resolved.meta_dir.cyan());
         println!("{} log_level: {}", "·".dimmed(), resolved.log_level.dimmed());
         println!("{} access_log: {}", "·".dimmed(), resolved.access_log.to_string().cyan());
         println!();
     }
 
-    // 2. 初始化 tracing（使用配置中的 log_level）
     let env_filter = format!(
         "cnt_license_server={}",
         resolved.log_level
@@ -42,16 +52,14 @@ async fn async_run(host: Option<&str>, port: Option<u16>, licenses_dir: Option<&
         .with_env_filter(env_filter)
         .init();
 
-    // 3. 初始化应用状态
     let licenses_path = std::path::PathBuf::from(&resolved.licenses_dir);
-    let app_state = crate::state::init_state(&licenses_path)
+    let meta_path = std::path::PathBuf::from(&resolved.meta_dir);
+    let app_state = crate::state::init_state(&licenses_path, &meta_path)
         .map_err(|e| anyhow!("Failed to load license data from '{}': {}", licenses_path.display(), e))?;
     let shared: crate::state::SharedState = Arc::new(app_state);
 
     let access_log_enabled = resolved.access_log;
 
-    // 4. 构建路由（与原 main.rs 完全一致）
-    // --- /api/v1 — primary RESTful routes ---
     let api_v1 = Router::new()
         .route("/health", get(crate::handlers::health::health_check))
         .route("/version", get(crate::handlers::version::get_version))
@@ -62,9 +70,9 @@ async fn async_run(host: Option<&str>, port: Option<u16>, licenses_dir: Option<&
             get(crate::handlers::licenses::get_info),
         )
         .route("/search", get(crate::handlers::search::search))
+        .route("/export", get(crate::handlers::export::export))
         .with_state(shared.clone());
 
-    // --- Backward-compatible aliases ---
     let compat = Router::new()
         .route("/", get(crate::handlers::licenses::list_all))
         .route("/health", get(crate::handlers::health::health_check))
@@ -79,9 +87,9 @@ async fn async_run(host: Option<&str>, port: Option<u16>, licenses_dir: Option<&
             get(crate::handlers::licenses::get_info),
         )
         .route("/search", get(crate::handlers::search::search))
+        .route("/export", get(crate::handlers::export::export))
         .with_state(shared.clone());
 
-    // --- 404 fallback ---
     let not_found = Router::new().fallback(handler_404_not_found);
 
     let mut app = Router::new()
@@ -97,7 +105,6 @@ async fn async_run(host: Option<&str>, port: Option<u16>, licenses_dir: Option<&
     let addr = format!("{}:{}", resolved.host, resolved.port);
     tracing::info!("cnt-license-server listening on {}", addr);
 
-    // Log the API structure
     tracing::info!("Routes:");
     tracing::info!("  GET /api/v1/health             — Health check");
     tracing::info!("  GET /api/v1/version            — Server version");
@@ -105,9 +112,7 @@ async fn async_run(host: Option<&str>, port: Option<u16>, licenses_dir: Option<&
     tracing::info!("  GET /api/v1/licenses/{{id}}     — Get one license template");
     tracing::info!("  GET /api/v1/licenses/{{id}}/info — Get license metadata");
     tracing::info!("  GET /api/v1/search?q=          — Search licenses");
-    tracing::info!(
-        "  (backward-compat aliases: /health, /licenses, /search, etc.)"
-    );
+    tracing::info!("  GET /api/v1/export             — Export all licenses as .zip");
 
     println!(
         "{} cnt-license-server listening on {}",
@@ -127,9 +132,6 @@ async fn async_run(host: Option<&str>, port: Option<u16>, licenses_dir: Option<&
     Ok(())
 }
 
-/// 访问日志中间件：在响应完成后输出格式化访问日志
-///
-/// 格式: `"<method> <uri>" <status> <latency_ms>ms`
 async fn access_log_middleware(
     req: axum::extract::Request,
     next: axum::middleware::Next,
@@ -151,7 +153,6 @@ async fn access_log_middleware(
     response
 }
 
-/// 404 handler — returns JSON error for unknown routes.
 async fn handler_404_not_found() -> (axum::http::StatusCode, axum::Json<serde_json::Value>) {
     (
         axum::http::StatusCode::NOT_FOUND,

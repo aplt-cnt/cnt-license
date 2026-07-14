@@ -3,22 +3,26 @@ use colored::Colorize;
 
 use crate::config;
 
-/// Executes the `remove` command: removes one or more license templates.
-///
-/// # Arguments
-/// * `names`        - List of license names to remove
-/// * `all`          - If true, remove all license templates
-/// * `licenses_dir` - CLI override for licenses directory
-pub fn execute(names: &[String], all: bool, licenses_dir: Option<&str>, verbose: bool) -> Result<()> {
-    // 解析许可证目录
-    let cfg = config::ServerConfig::load_from_file()?;
-    let resolved_dir = config::resolve_licenses_dir(licenses_dir, &cfg);
-    let dir = std::path::Path::new(&resolved_dir);
+/// Executes the `remove` command: removes one or more license templates and their metadata.
+pub fn execute(
+    config_dir: Option<&str>,
+    names: &[String],
+    all: bool,
+    licenses_dir: Option<&str>,
+    meta_dir: Option<&str>,
+    verbose: bool,
+) -> Result<()> {
+    let cfg = config::ServerConfig::load_from_file(config_dir)?;
+    let resolved_licenses_dir = config::resolve_licenses_dir(licenses_dir, &cfg);
+    let resolved_meta_dir = config::resolve_meta_dir(meta_dir, &cfg);
+    let dir = std::path::Path::new(&resolved_licenses_dir);
+    let meta_path = std::path::Path::new(&resolved_meta_dir);
 
     if verbose {
-        let config_path = config::ServerConfig::config_file_path().unwrap_or_default();
+        let config_path = config::ServerConfig::config_file_path(config_dir).unwrap_or_default();
         println!("{} Config file: {}", "·".dimmed(), config_path.display().to_string().dimmed());
-        println!("{} Licenses dir: {}", "·".dimmed(), resolved_dir.cyan());
+        println!("{} Licenses dir: {}", "·".dimmed(), resolved_licenses_dir.cyan());
+        println!("{} Meta dir: {}", "·".dimmed(), resolved_meta_dir.cyan());
         println!("{} all: {}", "·".dimmed(), all.to_string().dimmed());
         if !names.is_empty() {
             println!("{} targets: {}", "·".dimmed(), names.join(", ").yellow());
@@ -27,7 +31,7 @@ pub fn execute(names: &[String], all: bool, licenses_dir: Option<&str>, verbose:
     }
 
     if all {
-        return remove_all(dir, verbose);
+        return remove_all(dir, meta_path, verbose);
     }
 
     if names.is_empty() {
@@ -36,11 +40,10 @@ pub fn execute(names: &[String], all: bool, licenses_dir: Option<&str>, verbose:
         ));
     }
 
-    remove_names(dir, names, verbose)
+    remove_names(dir, meta_path, names, verbose)
 }
 
-/// 删除指定名称的许可证
-fn remove_names(dir: &std::path::Path, names: &[String], verbose: bool) -> Result<()> {
+fn remove_names(dir: &std::path::Path, meta_path: &std::path::Path, names: &[String], verbose: bool) -> Result<()> {
     if !dir.exists() {
         return Err(anyhow!("Licenses directory '{}' not found.", dir.display()));
     }
@@ -67,7 +70,14 @@ fn remove_names(dir: &std::path::Path, names: &[String], verbose: bool) -> Resul
             }
             Err(e) => {
                 errors.push((name.as_str(), e));
+                continue;
             }
+        }
+
+        let meta_file = meta_path.join(format!("{}.meta.toml", name));
+        if meta_file.exists() {
+            let _ = std::fs::remove_file(&meta_file);
+            if verbose { println!("{} Deleted meta: {}", "·".dimmed(), meta_file.display().to_string().dimmed()); }
         }
     }
 
@@ -83,8 +93,7 @@ fn remove_names(dir: &std::path::Path, names: &[String], verbose: bool) -> Resul
     Ok(())
 }
 
-/// 删除所有许可证模板文件
-fn remove_all(dir: &std::path::Path, verbose: bool) -> Result<()> {
+fn remove_all(dir: &std::path::Path, meta_path: &std::path::Path, verbose: bool) -> Result<()> {
     if !dir.exists() {
         println!(
             "  {} No licenses to remove.",
@@ -131,7 +140,15 @@ fn remove_all(dir: &std::path::Path, verbose: bool) -> Result<()> {
             }
             Err(e) => {
                 errors.push((name.as_str(), e));
+                continue;
             }
+        }
+
+        let base = name.strip_suffix(".txt").unwrap_or(name);
+        let meta_file = meta_path.join(format!("{}.meta.toml", base));
+        if meta_file.exists() {
+            let _ = std::fs::remove_file(&meta_file);
+            if verbose { println!("{} Deleted meta: {}", "·".dimmed(), meta_file.display().to_string().dimmed()); }
         }
     }
 
@@ -161,7 +178,6 @@ fn remove_all(dir: &std::path::Path, verbose: bool) -> Result<()> {
     Ok(())
 }
 
-/// 打印删除摘要
 fn print_summary(
     removed: u32,
     not_found: &[&str],

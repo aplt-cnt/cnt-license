@@ -4,15 +4,16 @@ use colored::Colorize;
 use crate::config;
 
 /// Executes the `config` command.
-///
-/// Modes:
-/// - `config --list`         → show all configurable keys and their current values
-/// - `config <key> <value>`  → set a configuration key
-/// - `config <key>`          → show the current value of a specific key
-/// - `config --reset <key>`  → reset a key to its default value
-pub fn execute(key: Option<&str>, value: Option<&str>, list: bool, reset: Option<&str>, verbose: bool) -> Result<()> {
+pub fn execute(
+    config_dir: Option<&str>,
+    key: Option<&str>,
+    value: Option<&str>,
+    list: bool,
+    reset: Option<&str>,
+    verbose: bool,
+) -> Result<()> {
     if verbose {
-        let config_path = config::ServerConfig::config_file_path().unwrap_or_default();
+        let config_path = config::ServerConfig::config_file_path(config_dir).unwrap_or_default();
         let exists = config_path.exists();
         println!("{} Config file: {} ({})", "·".dimmed(),
             config_path.display().to_string().dimmed(),
@@ -21,35 +22,29 @@ pub fn execute(key: Option<&str>, value: Option<&str>, list: bool, reset: Option
         println!();
     }
 
-    // --list mode
     if list {
-        return list_config();
+        return list_config(config_dir);
     }
 
-    // --reset <key> mode
     if let Some(reset_key) = reset {
-        return reset_config(reset_key, verbose);
+        return reset_config(config_dir, reset_key, verbose);
     }
 
-    // Need at least a key
     let key = key.ok_or_else(|| {
         anyhow!(
             "Usage: clicense-server config <key> [value]\n       clicense-server config --list\n       clicense-server config --reset <key>"
         )
     })?;
 
-    // config <key> <value> → set
     if let Some(val) = value {
-        return set_config(key, val, verbose);
+        return set_config(config_dir, key, val, verbose);
     }
 
-    // config <key> → show
-    show_config(key)
+    show_config(config_dir, key)
 }
 
-/// Lists all configurable keys with their current values and descriptions
-fn list_config() -> Result<()> {
-    let cfg = config::ServerConfig::load_from_file()?;
+fn list_config(config_dir: Option<&str>) -> Result<()> {
+    let cfg = config::ServerConfig::load_from_file(config_dir)?;
 
     println!("{} Available configuration keys:", "⚙".yellow().bold());
     println!();
@@ -58,7 +53,6 @@ fn list_config() -> Result<()> {
         let current_value = cfg.get_value(meta.key).unwrap_or_else(|| "(unknown)".to_string());
         let is_set = current_value != meta.default_value;
 
-        // Key name with type badge
         let key_display = if is_set {
             format!(
                 "{:<16} {}",
@@ -108,8 +102,7 @@ fn list_config() -> Result<()> {
     Ok(())
 }
 
-/// Shows the current value of a specific config key
-fn show_config(key: &str) -> Result<()> {
+fn show_config(config_dir: Option<&str>, key: &str) -> Result<()> {
     if !config::is_valid_key(key) {
         return Err(anyhow!(
             "Unknown config key: '{}'. Run 'clicense-server config --list' to see all available keys.",
@@ -117,7 +110,7 @@ fn show_config(key: &str) -> Result<()> {
         ));
     }
 
-    let cfg = config::ServerConfig::load_from_file()?;
+    let cfg = config::ServerConfig::load_from_file(config_dir)?;
     let current = cfg.get_value(key).unwrap_or_else(|| "(unknown)".to_string());
     let meta = config::get_meta(key).unwrap();
 
@@ -128,8 +121,7 @@ fn show_config(key: &str) -> Result<()> {
     Ok(())
 }
 
-/// Sets a configuration key to a given value
-fn set_config(key: &str, value: &str, verbose: bool) -> Result<()> {
+fn set_config(config_dir: Option<&str>, key: &str, value: &str, verbose: bool) -> Result<()> {
     if !config::is_valid_key(key) {
         return Err(anyhow!(
             "Unknown config key: '{}'. Run 'clicense-server config --list' to see all available keys.",
@@ -137,13 +129,13 @@ fn set_config(key: &str, value: &str, verbose: bool) -> Result<()> {
         ));
     }
 
-    let mut cfg = config::ServerConfig::load_from_file()?;
+    let mut cfg = config::ServerConfig::load_from_file(config_dir)?;
     let old_value = cfg.get_value(key).unwrap_or_else(|| "(unknown)".to_string());
     cfg.set_value(key, value)?;
-    cfg.save_to_file()?;
+    cfg.save_to_file(config_dir)?;
 
     if verbose {
-        let path = config::ServerConfig::config_file_path().unwrap_or_default();
+        let path = config::ServerConfig::config_file_path(config_dir).unwrap_or_default();
         println!("{} Config file: {}", "·".dimmed(), path.display().to_string().dimmed());
         println!("{} Old value: {}", "·".dimmed(), old_value.dimmed());
         println!("{} New value: {}", "·".dimmed(), value.cyan());
@@ -160,8 +152,7 @@ fn set_config(key: &str, value: &str, verbose: bool) -> Result<()> {
     Ok(())
 }
 
-/// Resets a configuration key to its default value
-fn reset_config(key: &str, verbose: bool) -> Result<()> {
+fn reset_config(config_dir: Option<&str>, key: &str, verbose: bool) -> Result<()> {
     if !config::is_valid_key(key) {
         return Err(anyhow!(
             "Unknown config key: '{}'. Run 'clicense-server config --list' to see all available keys.",
@@ -169,13 +160,13 @@ fn reset_config(key: &str, verbose: bool) -> Result<()> {
         ));
     }
 
-    let mut cfg = config::ServerConfig::load_from_file()?;
+    let mut cfg = config::ServerConfig::load_from_file(config_dir)?;
     let old_value = cfg.get_value(key).unwrap_or_else(|| "(unknown)".to_string());
     cfg.reset_value(key)?;
-    cfg.save_to_file()?;
+    cfg.save_to_file(config_dir)?;
 
     if verbose {
-        let path = config::ServerConfig::config_file_path().unwrap_or_default();
+        let path = config::ServerConfig::config_file_path(config_dir).unwrap_or_default();
         println!("{} Config file: {}", "·".dimmed(), path.display().to_string().dimmed());
         println!("{} Old value: {}", "·".dimmed(), old_value.dimmed());
         println!();
