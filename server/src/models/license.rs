@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 /// 许可证元信息（从 licenses.toml 加载）
@@ -6,7 +8,9 @@ pub struct LicenseMeta {
     pub name: String,
     pub description: String,
     pub spdx_id: String,
+    #[serde(default)]
     pub placeholders: Vec<String>,
+    #[serde(default)]
     pub keywords: Vec<String>,
     #[serde(default)]
     pub permissions: Vec<String>,
@@ -14,6 +18,8 @@ pub struct LicenseMeta {
     pub conditions: Vec<String>,
     #[serde(default)]
     pub limitations: Vec<String>,
+    #[serde(default)]
+    pub custom: HashMap<String, String>,
 }
 
 /// 搜索结果中的许可证条目

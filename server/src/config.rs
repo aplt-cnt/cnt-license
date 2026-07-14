@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-/// 服务器配置（持久化到 ~/.clicense-server/config.yml）
+/// 服务器配置（持久化到配置目录 config.yml）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerConfig {
     #[serde(default = "default_host")]
@@ -11,6 +11,8 @@ pub struct ServerConfig {
     pub port: u16,
     #[serde(default = "default_licenses_dir")]
     pub licenses_dir: String,
+    #[serde(default = "default_meta_dir")]
+    pub meta_dir: String,
     #[serde(default = "default_log_level")]
     pub log_level: String,
     #[serde(default = "default_access_log")]
@@ -26,6 +28,9 @@ fn default_port() -> u16 {
 fn default_licenses_dir() -> String {
     "./licenses".to_string()
 }
+fn default_meta_dir() -> String {
+    "./meta".to_string()
+}
 fn default_log_level() -> String {
     "info".to_string()
 }
@@ -39,6 +44,7 @@ impl Default for ServerConfig {
             host: default_host(),
             port: default_port(),
             licenses_dir: default_licenses_dir(),
+            meta_dir: default_meta_dir(),
             log_level: default_log_level(),
             access_log: default_access_log(),
         }
@@ -75,6 +81,12 @@ pub fn config_keys() -> Vec<ConfigMeta> {
             value_type: "String",
         },
         ConfigMeta {
+            key: "meta_dir",
+            description: "许可证元数据目录",
+            default_value: "./meta",
+            value_type: "String",
+        },
+        ConfigMeta {
             key: "log_level",
             description: "日志级别",
             default_value: "info",
@@ -99,26 +111,41 @@ pub fn get_meta(key: &str) -> Option<ConfigMeta> {
     config_keys().into_iter().find(|m| m.key == key)
 }
 
+/// 解析配置目录路径（优先级：CLI 参数 > 环境变量 > /etc/clicense-server > ~/.clicense-server）
+pub fn resolve_config_dir(cli_override: Option<&str>) -> Result<PathBuf> {
+    if let Some(dir) = cli_override {
+        return Ok(PathBuf::from(dir));
+    }
+    if let Ok(dir) = std::env::var("CLICENSE_SERVER_CONFIG_DIR") {
+        return Ok(PathBuf::from(dir));
+    }
+    let system_dir = PathBuf::from("/etc/clicense-server");
+    if system_dir.exists() {
+        return Ok(system_dir);
+    }
+    let home = dirs::home_dir().ok_or_else(|| anyhow!("Cannot determine home directory"))?;
+    Ok(home.join(".clicense-server"))
+}
+
 impl ServerConfig {
     /// 返回默认配置
     pub fn defaults() -> Self {
         Self::default()
     }
 
-    /// 获取配置目录路径 (~/.clicense-server/)
-    pub fn config_dir() -> Result<PathBuf> {
-        let home = dirs::home_dir().ok_or_else(|| anyhow!("Cannot determine home directory"))?;
-        Ok(home.join(".clicense-server"))
+    /// 获取配置目录路径
+    pub fn config_dir(config_dir_override: Option<&str>) -> Result<PathBuf> {
+        resolve_config_dir(config_dir_override)
     }
 
-    /// 获取配置文件路径 (~/.clicense-server/config.yml)
-    pub fn config_file_path() -> Result<PathBuf> {
-        Ok(Self::config_dir()?.join("config.yml"))
+    /// 获取配置文件路径
+    pub fn config_file_path(config_dir_override: Option<&str>) -> Result<PathBuf> {
+        Ok(Self::config_dir(config_dir_override)?.join("config.yml"))
     }
 
     /// 确保配置目录存在
-    pub fn ensure_config_dir() -> Result<()> {
-        let dir = Self::config_dir()?;
+    pub fn ensure_config_dir(config_dir_override: Option<&str>) -> Result<()> {
+        let dir = Self::config_dir(config_dir_override)?;
         if !dir.exists() {
             std::fs::create_dir_all(&dir).map_err(|e| {
                 anyhow!(
@@ -132,8 +159,8 @@ impl ServerConfig {
     }
 
     /// 从配置文件加载，文件不存在则返回默认值
-    pub fn load_from_file() -> Result<Self> {
-        let path = Self::config_file_path()?;
+    pub fn load_from_file(config_dir_override: Option<&str>) -> Result<Self> {
+        let path = Self::config_file_path(config_dir_override)?;
         if !path.exists() {
             return Ok(Self::default());
         }
@@ -155,9 +182,9 @@ impl ServerConfig {
     }
 
     /// 保存到配置文件
-    pub fn save_to_file(&self) -> Result<()> {
-        Self::ensure_config_dir()?;
-        let path = Self::config_file_path()?;
+    pub fn save_to_file(&self, config_dir_override: Option<&str>) -> Result<()> {
+        Self::ensure_config_dir(config_dir_override)?;
+        let path = Self::config_file_path(config_dir_override)?;
         let content = serde_yaml::to_string(self)
             .map_err(|e| anyhow!("Failed to serialize config: {}", e))?;
         std::fs::write(&path, content).map_err(|e| {
@@ -173,7 +200,13 @@ impl ServerConfig {
     /// 三级优先级合并：CLI 参数 > 配置文件 > 默认值
     ///
     /// 传入 CLI 参数的 Option 值，Some 则覆盖配置文件中的值
-    pub fn resolve(&self, host: Option<&str>, port: Option<u16>, licenses_dir: Option<&str>) -> Self {
+    pub fn resolve(
+        &self,
+        host: Option<&str>,
+        port: Option<u16>,
+        licenses_dir: Option<&str>,
+        meta_dir: Option<&str>,
+    ) -> Self {
         Self {
             host: host
                 .map(str::to_string)
@@ -182,6 +215,9 @@ impl ServerConfig {
             licenses_dir: licenses_dir
                 .map(str::to_string)
                 .unwrap_or_else(|| self.licenses_dir.clone()),
+            meta_dir: meta_dir
+                .map(str::to_string)
+                .unwrap_or_else(|| self.meta_dir.clone()),
             log_level: self.log_level.clone(),
             access_log: self.access_log,
         }
@@ -193,6 +229,7 @@ impl ServerConfig {
             "host" => Some(self.host.clone()),
             "port" => Some(self.port.to_string()),
             "licenses_dir" => Some(self.licenses_dir.clone()),
+            "meta_dir" => Some(self.meta_dir.clone()),
             "log_level" => Some(self.log_level.clone()),
             "access_log" => Some(self.access_log.to_string()),
             _ => None,
@@ -209,6 +246,7 @@ impl ServerConfig {
                 })?;
             }
             "licenses_dir" => self.licenses_dir = value.to_string(),
+            "meta_dir" => self.meta_dir = value.to_string(),
             "log_level" => self.log_level = value.to_string(),
             "access_log" => {
                 self.access_log = value.parse().map_err(|e| {
@@ -231,6 +269,7 @@ impl ServerConfig {
             "host" => self.host = default_host(),
             "port" => self.port = default_port(),
             "licenses_dir" => self.licenses_dir = default_licenses_dir(),
+            "meta_dir" => self.meta_dir = default_meta_dir(),
             "log_level" => self.log_level = default_log_level(),
             "access_log" => self.access_log = default_access_log(),
             _ => {
@@ -249,4 +288,11 @@ pub fn resolve_licenses_dir(cli_override: Option<&str>, cfg: &ServerConfig) -> S
     cli_override
         .map(str::to_string)
         .unwrap_or_else(|| cfg.licenses_dir.clone())
+}
+
+/// 解析元数据目录：CLI 覆盖 > 配置文件 > 默认值
+pub fn resolve_meta_dir(cli_override: Option<&str>, cfg: &ServerConfig) -> String {
+    cli_override
+        .map(str::to_string)
+        .unwrap_or_else(|| cfg.meta_dir.clone())
 }

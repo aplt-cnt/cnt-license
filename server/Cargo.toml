@@ -1,11 +1,27 @@
 [package]
 name = "clicense-server"
-version = "0.1.0"
+version = "1.1.0"
 edition = "2024"
 authors = ["TaimWay <taimway@gmail.com>"]
 license = "GPL-3.0"
-description = "A CLI tool for generating open source license files."
+description = "Open Source License API Server"
 repository = "https://github.com/aplt-cnt/cnt-license"
+
+[package.metadata.deb]
+maintainer = "TaimWay <taimway@gmail.com>"
+section = "utils"
+priority = "optional"
+depends = "systemd"
+extended-description = """\
+clicense-server is an API server for managing open-source license \
+templates. It provides a RESTful API for listing, searching, and \
+exporting license templates and metadata.\
+"""
+assets = [
+    ["packaging/assets/clicense-server.service", "/etc/systemd/system/clicense-server.service", "644"],
+    ["packaging/assets/config.yml", "/etc/clicense-server/config.yml", "644"],
+]
+maintainer-scripts = "packaging/deb-scripts/"
 
 [dependencies]
 axum = "0.8"
@@ -23,3 +39,4 @@ anyhow = "1"
 time = { version = "0.3", features = ["formatting", "local-offset"] }
 ureq = "3"
 dirs = "6"
+zip = "2"
