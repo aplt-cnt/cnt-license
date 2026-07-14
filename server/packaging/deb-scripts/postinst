@@ -1,0 +1,32 @@
+#!/bin/sh
+set -e
+
+CONFIG_DIR="/etc/clicense-server"
+LICENSES_DIR="/var/lib/clicense-server/licenses"
+META_DIR="/var/lib/clicense-server/meta"
+
+mkdir -p "$LICENSES_DIR"
+mkdir -p "$META_DIR"
+
+if [ ! -f "$LICENSES_DIR/mit.txt" ]; then
+    echo "Initializing built-in license templates..."
+    /usr/bin/clicense-server --config-dir "$CONFIG_DIR" init \
+        --licenses-dir "$LICENSES_DIR" \
+        --meta-dir "$META_DIR" \
+        --force > /dev/null 2>&1 || true
+fi
+
+if command -v systemctl > /dev/null 2>&1; then
+    systemctl daemon-reload || true
+fi
+
+echo ""
+echo "=== clicense-server installed ========================="
+echo "  Start:     systemctl start clicense-server"
+echo "  Enable:    systemctl enable clicense-server"
+echo "  Config:    $CONFIG_DIR/config.yml"
+echo "  Licenses:  $LICENSES_DIR/"
+echo "  API:       http://localhost:3000/api/v1/"
+echo "  Export:    http://localhost:3000/api/v1/export"
+echo "======================================================"
+echo ""

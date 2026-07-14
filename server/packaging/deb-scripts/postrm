@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+
+if command -v systemctl > /dev/null 2>&1; then
+    systemctl daemon-reload || true
+fi
+
+if [ "$1" = "purge" ]; then
+    rm -rf /etc/clicense-server 2>/dev/null || true
+    rm -rf /var/lib/clicense-server 2>/dev/null || true
+fi

@@ -1,0 +1,6 @@
+host: 0.0.0.0
+port: 3000
+licenses_dir: /var/lib/clicense-server/licenses
+meta_dir: /var/lib/clicense-server/meta
+log_level: info
+access_log: true

@@ -1,0 +1,22 @@
+[Unit]
+Description=clicense-server - Open Source License API Server
+After=network.target
+Documentation=https://clicense.top
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/clicense-server run --config-dir /etc/clicense-server
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=clicense-server
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/clicense-server
+ReadOnlyPaths=/etc/clicense-server
+
+[Install]
+WantedBy=multi-user.target
