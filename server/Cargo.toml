@@ -7,6 +7,10 @@ license = "GPL-3.0"
 description = "Open Source License API Server"
 repository = "https://github.com/aplt-cnt/cnt-license"
 
+[[bin]]
+name = "clicense-server"
+path = "src/main.rs"
+
 [package.metadata.deb]
 maintainer = "TaimWay <taimway@gmail.com>"
 section = "utils"
