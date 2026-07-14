@@ -22,8 +22,9 @@ templates. It provides a RESTful API for listing, searching, and \
 exporting license templates and metadata.\
 """
 assets = [
-    ["packaging/assets/clicense-server.service", "/etc/systemd/system/clicense-server.service", "644"],
-    ["packaging/assets/config.yml", "/etc/clicense-server/config.yml", "644"],
+    ["../target/release/clicense-server", "usr/bin/clicense-server", "755"],
+    ["packaging/assets/clicense-server.service", "etc/systemd/system/clicense-server.service", "644"],
+    ["packaging/assets/config.yml", "etc/clicense-server/config.yml", "644"],
 ]
 maintainer-scripts = "packaging/deb-scripts/"
 
