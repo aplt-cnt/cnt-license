@@ -11,7 +11,7 @@ repository = "https://github.com/aplt-cnt/cnt-license"
 maintainer = "TaimWay <taimway@gmail.com>"
 section = "utils"
 priority = "optional"
-depends = "clicense-server (= 1.1.0)"
+depends = "clicense-server (>= 1.1.0)"
 extended-description = """\
 clicense is a CLI tool for generating open-source license files from \
 templates. It supports built-in licenses (MIT, Apache-2.0, GPL-3.0, \
